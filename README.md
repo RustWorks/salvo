@@ -19,7 +19,7 @@
 <a href="https://crates.io/crates/salvo"><img alt="crates.io" src="https://img.shields.io/crates/v/salvo" /></a>
 <a href="https://docs.rs/salvo"><img alt="Documentation" src="https://docs.rs/salvo/badge.svg" /></a>
 <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg" /></a>
-<a href="https://blog.rust-lang.org/2022/04/07/Rust-1.60.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.60%2B-blue" /></a>
+<a href="https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.64%2B-blue" /></a>
 <br>
 <a href="https://salvo.rs">
     <img alt="Website" src="https://img.shields.io/badge/https-salvo.rs-%23f00" />
@@ -35,7 +35,8 @@ Salvo is an extremely simple and powerful Rust web backend framework. Only basic
 ## 🎯 Features
    - Built with [Hyper](https://crates.io/crates/hyper) and [Tokio](https://crates.io/crates/tokio);
    - Unified middleware and handle interface;
-   - Routing supports multi-level nesting, and middleware can be added at any level;
+   - Limitless routers nesting;
+   - Every router can have one or many middlewares;
    - Integrated Multipart form processing;
    - Support WebSocket;
    - Acme support, automatically get TLS certificate from [let's encrypt](https://letsencrypt.org/).
@@ -53,7 +54,7 @@ Add this to `Cargo.toml`
 
 ```toml
 [dependencies]
-salvo = "0.33"
+salvo = "*"
 tokio = { version = "1", features = ["macros"] }
 ```
 

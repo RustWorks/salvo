@@ -1,0 +1,69 @@
+[package]
+name = "salvo"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = """
+Salvo is a powerful and simplest web server framework in Rust world.
+"""
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+readme.workspace = true
+keywords.workspace = true
+license.workspace = true
+categories.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[badges]
+codecov = { repository = "salvo-rs/salvo", branch = "main", service = "github" }
+
+[lib]
+name = "salvo"
+path = "src/lib.rs"
+
+[features]
+default = ["test", "cookie"]
+full = ["test", "cookie", "rustls", "native-tls", "openssl", "unix", "acme", "anyhow", "cache", "cors", "csrf", "flash", "rate-limiter", "session", "serve-static"]
+cookie = ["salvo_core/cookie"]
+rustls = ["salvo_core/rustls"]
+native-tls = ["salvo_core/native-tls"]
+openssl = ["salvo_core/openssl"]
+unix = ["salvo_core/unix"]
+acme = ["salvo_core/acme"]
+anyhow = ["salvo_core/anyhow"]
+test = ["salvo_core/test"]
+affix = ["salvo_extra/affix"]
+basic-auth = ["salvo_extra/basic-auth"]
+force-https = ["salvo_extra/force-https"]
+jwt-auth = ["salvo_extra/jwt-auth"]
+compression = ["salvo_extra/compression"]
+logging = ["salvo_extra/logging"]
+proxy = ["salvo_extra/proxy"]
+size-limiter = ["salvo_extra/size-limiter"]
+sse = ["salvo_extra/sse"]
+trailing-slash = ["salvo_extra/trailing-slash"]
+timeout = ["salvo_extra/timeout"]
+ws = ["salvo_extra/ws"]
+caching-headers = ["salvo_extra/caching-headers"]
+cache = ["dep:salvo-cache"]
+cors = ["dep:salvo-cors"]
+csrf = ["dep:salvo-csrf"]
+flash = ["dep:salvo-flash"]
+rate-limiter = ["dep:salvo-rate-limiter"]
+session = ["dep:salvo-session"]
+serve-static = ["dep:salvo-static"]
+
+[dependencies]
+salvo_core = { workspace = true, default-features = false, path = "../core" }
+salvo_extra = { workspace = true, default-features = false, optional = true, path = "../extra" }
+salvo-cache = { workspace = true, optional = true, path = "../cache" }
+salvo-cors = { workspace = true, optional = true, path = "../cors" }
+salvo-csrf = { workspace = true, features = ["all"], optional = true, path = "../csrf" }
+salvo-flash = { workspace = true, features = ["all"], optional = true, path = "../flash" }
+salvo-rate-limiter = { workspace = true, features = ["all"], optional = true, path = "../rate-limiter" }
+salvo-session = { workspace = true, optional = true, path = "../session" }
+salvo-static = { workspace = true, features = ["all"], optional = true, path = "../static" }

@@ -19,7 +19,7 @@
 <a href="https://crates.io/crates/salvo"><img alt="crates.io" src="https://img.shields.io/crates/v/salvo" /></a>
 <a href="https://docs.rs/salvo"><img alt="Documentation" src="https://docs.rs/salvo/badge.svg" /></a>
 <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg" /></a>
-<a href="https://blog.rust-lang.org/2022/04/07/Rust-1.60.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.60%2B-blue" /></a>
+<a href="https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.64%2B-blue" /></a>
 <br>
 <a href="https://salvo.rs">
     <img alt="Website" src="https://img.shields.io/badge/https-salvo.rs-%23f00" />
@@ -36,7 +36,8 @@ Salvo 是一个极其简单且功能强大的 Rust Web 后端框架. 仅仅需�
 
   - 基于 [Hyper](https://crates.io/crates/hyper), [Tokio](https://crates.io/crates/tokio) 开发;
   - 统一的中间件和句柄接口;
-  - 路由支持多层次嵌套, 在任何层都可以添加中间件;
+  - 路由支持无限层次嵌套;
+  - 每一个路由都可以拥有一个或者多个中间件;
   - 集成 Multipart 表单处理;
   - 支持 WebSocket;
   - 支持 Acme, 自动从 [let's encrypt](https://letsencrypt.org/) 获取 TLS 证书.
@@ -56,7 +57,7 @@ cargo new hello_salvo --bin
 
 ```toml
 [dependencies]
-salvo = "0.33"
+salvo = "*"
 tokio = { version = "1", features = ["macros"] }
 ```
 在 `main.rs` 中创建一个简单的函数句柄, 命名为`hello_world`, 这个函数只是简单地打印文本 ```"Hello World"```.
@@ -264,6 +265,8 @@ cargo run --bin example-basic-auth
 ```
 
 您可以使用任何你想运行的示例名称替代这里的 ```basic-auth```.
+
+中国用户可以添加我微信(chrislearn), 拉微信讨论群.
 
 ## 🚀 性能
 

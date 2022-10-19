@@ -2,7 +2,7 @@
 <p><img alt="Savlo" width="132" style="max-width:40%;min-width:60px;" src="https://salvo.rs/images/logo-text.svg" /></p>
 <p>
     <a href="https://github.com/salvo-rs/salvo/blob/main/README.md">English</a>&nbsp;&nbsp;
-    <a href="https://github.com/salvo-rs/salvo/blob/main/README.zh-hans.md">簡體中文</a>&nbsp;&nbsp;
+    <a href="https://github.com/salvo-rs/salvo/blob/main/README.zh-hans.md">简体中文</a>&nbsp;&nbsp;
     <a href="https://github.com/salvo-rs/salvo/blob/main/README.zh-hant.md">繁體中文</a>
 </p>
 <p>
@@ -44,7 +44,7 @@ Salvo 是一個極其簡單且功能強大的 Rust Web 後端框架. 僅僅需�
 
 ## ⚡️ 快速開始
 
-你可以查看[實例代碼](https://github.com/salvo-rs/salvo/tree/main/examples),  或者訪問[官網](https://salvo.rs/book/quick-start/hello_world/).
+你可以查看[實例代碼](https://github.com/salvo-rs/salvo/tree/main/examples),  或者訪問[官網](https://salvo.rs/book/guid/hello_world/).
 
 
 創建一個全新的項目:
@@ -276,6 +276,10 @@ Benchmark 測試結果可以從這裏查看:
 
 [https://www.techempower.com/benchmarks/#section=data-r21](https://www.techempower.com/benchmarks/#section=data-r21)
 ![techempower](assets/tp.jpg)
+
+## 🎇 部署
+
+你可以通過 [shuttle.rs](https://www.shuttle.rs/) 部署你的 Salvo 項目, 這非常簡單, 具體參見 shuttle's [官方文檔)(https://docs.shuttle.rs/guide/salvo-examples.html).
 
 ## 🩸 貢獻
 

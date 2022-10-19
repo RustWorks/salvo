@@ -11,6 +11,7 @@ pub use http::request::Parts;
 use http::version::Version;
 use http::{self, Extensions, Uri};
 pub use hyper::Body as ReqBody;
+use mime;
 use multimap::MultiMap;
 use once_cell::sync::OnceCell;
 use serde::de::Deserialize;
@@ -40,7 +41,7 @@ pub struct Request {
     method: Method,
 
     #[cfg(feature = "cookie")]
-    cookies: CookieJar,
+    pub(crate) cookies: CookieJar,
 
     pub(crate) params: HashMap<String, String>,
 

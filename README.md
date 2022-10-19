@@ -42,7 +42,7 @@ Salvo is an extremely simple and powerful Rust web backend framework. Only basic
    - Acme support, automatically get TLS certificate from [let's encrypt](https://letsencrypt.org/).
 
 ## ⚡️ Quick start
-You can view samples [here](https://github.com/salvo-rs/salvo/tree/main/examples), or view [offical website](https://salvo.rs/book/quick-start/hello_world/).
+You can view samples [here](https://github.com/salvo-rs/salvo/tree/main/examples), or view [offical website](https://salvo.rs/book/guid/hello_world/).
 
 Create a new rust project:
 
@@ -282,6 +282,10 @@ Benchmark testing result can be found from here:
 [https://www.techempower.com/benchmarks/#section=data-r21](https://www.techempower.com/benchmarks/#section=data-r21)
 ![techempower](assets/tp.jpg)
 
+
+## 🎇 Deployment
+
+You can deploy your salvo projects through [shuttle.rs](https://www.shuttle.rs/), it is very easy, you can read shuttle's offical document [here](https://docs.shuttle.rs/guide/salvo-examples.html).
 
 ## 🩸 Contributing
 

@@ -119,8 +119,8 @@ fn decode_url_path_safely(path: &str) -> String {
 /// All handlers in this list will executed one by one. Each handler can use `FlowCtrl` to control this
 /// flow, let the flow call next handler or skip all rest handlers.
 ///
-/// **NOTE**: When `Response`'s status code is set, and it's `is_success()` is returns false, all rest handlers
-/// will skipped.
+/// **NOTE**: When `Response`'s status code is set, and the status code `is_success()` is returns false,
+/// all rest handlers will skipped.
 ///
 /// [`Router`]: crate::routing::Router
 pub struct FlowCtrl {
@@ -142,7 +142,7 @@ impl FlowCtrl {
     /// Has next handler.
     #[inline]
     pub fn has_next(&self) -> bool {
-        self.cursor < self.handlers.len() && !self.handlers.is_empty()
+        self.cursor < self.handlers.len() // && !self.handlers.is_empty()
     }
 
     /// Call next handler. If get next handler and executed, returns true, otherwise returns false.
@@ -202,7 +202,7 @@ mod tests {
     #[tokio::test]
     async fn test_custom_filter() {
         #[handler(internal)]
-        async fn hello_world() -> &'static str {
+        async fn hello() -> &'static str {
             "Hello World"
         }
 
@@ -211,7 +211,7 @@ mod tests {
                 let host = req.uri().host().unwrap_or_default();
                 host == "localhost"
             })
-            .get(hello_world);
+            .get(hello);
         let service = Service::new(router);
 
         async fn access(service: &Service, host: &str) -> String {

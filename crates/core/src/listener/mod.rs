@@ -223,7 +223,7 @@ impl TcpListener {
     #[inline]
     pub fn try_bind(incoming: impl IntoAddrIncoming) -> Result<Self, hyper::Error> {
         Ok(TcpListener {
-            incoming: incoming.into_incoming(),
+            incoming: incoming.into_incoming()?,
         })
     }
 }
@@ -241,32 +241,32 @@ impl Accept for TcpListener {
 /// IntoAddrIncoming
 pub trait IntoAddrIncoming {
     /// Convert into AddrIncoming
-    fn into_incoming(self) -> AddrIncoming;
+    fn into_incoming(self) -> Result<AddrIncoming, hyper::Error>;
 }
 
 impl IntoAddrIncoming for StdSocketAddr {
     #[inline]
-    fn into_incoming(self) -> AddrIncoming {
-        let mut incoming = AddrIncoming::bind(&self).unwrap();
+    fn into_incoming(self) -> Result<AddrIncoming, hyper::Error> {
+        let mut incoming = AddrIncoming::bind(&self)?;
         incoming.set_nodelay(true);
-        incoming
+        Ok(incoming)
     }
 }
 
 impl IntoAddrIncoming for AddrIncoming {
     #[inline]
-    fn into_incoming(self) -> AddrIncoming {
-        self
+    fn into_incoming(self) -> Result<AddrIncoming, hyper::Error> {
+        Ok(self)
     }
 }
 
 impl<T: ToSocketAddrs + ?Sized> IntoAddrIncoming for &T {
     #[inline]
-    fn into_incoming(self) -> AddrIncoming {
+    fn into_incoming(self) -> Result<AddrIncoming, hyper::Error> {
         for addr in self.to_socket_addrs().expect("failed to create AddrIncoming") {
             if let Ok(mut incoming) = AddrIncoming::bind(&addr) {
                 incoming.set_nodelay(true);
-                return incoming;
+                return Ok(incoming);
             }
         }
         panic!("failed to create AddrIncoming");
@@ -275,10 +275,10 @@ impl<T: ToSocketAddrs + ?Sized> IntoAddrIncoming for &T {
 
 impl<I: Into<IpAddr>> IntoAddrIncoming for (I, u16) {
     #[inline]
-    fn into_incoming(self) -> AddrIncoming {
-        let mut incoming = AddrIncoming::bind(&self.into()).expect("failed to create AddrIncoming");
+    fn into_incoming(self) -> Result<AddrIncoming, hyper::Error> {
+        let mut incoming = AddrIncoming::bind(&self.into())?;
         incoming.set_nodelay(true);
-        incoming
+        Ok(incoming)
     }
 }
 
@@ -290,46 +290,12 @@ mod tests {
 
     use super::*;
 
-    impl Stream for TcpListener {
-        type Item = Result<AddrStream, IoError>;
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            self.poll_accept(cx)
-        }
-    }
-
-    impl<A, B> Stream for JoinedListener<A, B>
-    where
-        A: Accept + Send + Unpin + 'static,
-        B: Accept + Send + Unpin + 'static,
-        A::Conn: Transport,
-        B::Conn: Transport,
-    {
-        type Item = Result<JoinedStream<A::Conn, B::Conn>, IoError>;
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            self.poll_accept(cx)
-        }
-    }
-
-    #[tokio::test]
-    async fn test_tcp_listener() {
-        let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 6878));
-
-        let mut listener = TcpListener::bind(addr);
-        tokio::spawn(async move {
-            let mut stream = TcpStream::connect(addr).await.unwrap();
-            stream.write_i32(150).await.unwrap();
-        });
-
-        let mut stream = listener.next().await.unwrap().unwrap();
-        assert_eq!(stream.read_i32().await.unwrap(), 150);
-    }
-
     #[tokio::test]
     async fn test_joined_listener() {
         let addr1 = std::net::SocketAddr::from(([127, 0, 0, 1], 6978));
         let addr2 = std::net::SocketAddr::from(([127, 0, 0, 1], 6979));
 
-        let mut listener = TcpListener::bind(addr1).join(TcpListener::bind(addr2));
+        let mut listener = TcpListener::new(addr1).join(TcpListener::new(addr2));
         tokio::spawn(async move {
             let mut stream = TcpStream::connect(addr1).await.unwrap();
             stream.write_i32(50).await.unwrap();

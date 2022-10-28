@@ -32,10 +32,15 @@
 
 Salvo 是一個極其簡單且功能強大的 Rust Web 後端框架. 僅僅需要基礎 Rust 知識即可開發後端服務.
 
+> **Note**: salvo's [main](https://github.com/salvo-rs/salvo) branch is
+> currently preparing breaking changes. For the most recently *released* code,
+> look to the [0.37.x branch](https://github.com/salvo-rs/salvo/tree/v0.37.x).
+
 ## 🎯 功能特色
 
   - 基於 [Hyper](https://crates.io/crates/hyper), [Tokio](https://crates.io/crates/tokio) 開發;
   - 統一的中間件和句柄接口;
+  - 支持 Http1, Http2 和 **Http3**;
   - 路由支持無限層次嵌套;
   - 每一個路由都可以擁有一個或者多個中間件;
   - 集成 Multipart 錶單處理;
@@ -44,7 +49,7 @@ Salvo 是一個極其簡單且功能強大的 Rust Web 後端框架. 僅僅需�
 
 ## ⚡️ 快速開始
 
-你可以查看[實例代碼](https://github.com/salvo-rs/salvo/tree/main/examples),  或者訪問[官網](https://salvo.rs/book/guid/hello_world/).
+你可以查看[實例代碼](https://github.com/salvo-rs/salvo/tree/main/examples),  或者訪問[官網](https://salvo.rs/book/guid/hello/).
 
 
 創建一個全新的項目:
@@ -60,13 +65,13 @@ cargo new hello_salvo --bin
 salvo = "*"
 tokio = { version = "1", features = ["macros"] }
 ```
-在 `main.rs` 中創建一個簡單的函數句柄, 命名為`hello_world`, 這個函數隻是簡單地打印文本 ```"Hello World"```.
+在 `main.rs` 中創建一個簡單的函數句柄, 命名為`hello`, 這個函數隻是簡單地打印文本 ```"Hello World"```.
 
 ```rust
 use salvo::prelude::*;
 
 #[handler]
-async fn hello_world(_req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+async fn hello(_req: &mut Request, _depot: &mut Depot, res: &mut Response) {
     res.render(Text::Plain("Hello World"));
 }
 ```
@@ -89,7 +94,7 @@ async fn add_header(res: &mut Response) {
 然後將它添加到路由中:
 
 ```rust
-Router::new().hoop(add_header).get(hello_world)
+Router::new().hoop(add_header).get(hello)
 ```
 
 這就是一個簡單的中間件, 它嚮 ```Response``` 的頭部添加了 ```Header```, 查看[完整源碼](https://github.com/salvo-rs/salvo/blob/main/examples/middleware-add-header/src/main.rs).
@@ -294,7 +299,7 @@ All pull requests are code reviewed and tested by the CI. Note that unless you e
 
 ## ☕ 支持
 
-`Salvo`是一個開源項目, 如果想支持本項目, 可以 ☕ [**在這裏買一杯咖啡**](https://www.buymeacoffee.com/chrislearn). 
+`Salvo`是一個開源項目, 如果想支持本項目, 可以 ☕ [**在這裏買一杯咖啡**](https://ko-fi.com/chrislearn). 
 <p style="text-align: center;">
 <img src="https://salvo.rs/images/alipay.png" alt="Alipay" width="180"/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="https://salvo.rs/images/weixin.png" alt="Weixin" width="180"/>
 </p>

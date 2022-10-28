@@ -24,12 +24,11 @@
 //!         .cache_path("acme/letsencrypt")
 //!         .add_domain("acme-http01.salvo.rs")
 //!         .http01_challege(&mut router)
-//!         .bind("0.0.0.0:443")
+//!         .addr("0.0.0.0:443")
 //!         .await;
 //!     tracing::info!("Listening on https://0.0.0.0:443");
-//!     Server::new(listener.join(TcpListener::bind("0.0.0.0:80")))
-//!         .serve(router)
-//!         .await;
+//!     let acceptor = listener.join(TcpListener::new("0.0.0.0:80")).bind().await;
+//!     Server::new(acceptor).serve(router).await;
 //! }
 //! ```
 //!
@@ -70,7 +69,7 @@ mod resolver;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display, Formatter};
-use std::io::{self, Error as IoError, Result as IoResult};
+use std::io::{self, Error as IoError};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
@@ -302,7 +301,7 @@ impl AcmeListenerBuilder {
         self.try_bind(incoming).await.unwrap()
     }
     /// Consumes this builder and returns a [`Result<AcmeListener, std::IoError>`] object.
-    pub async fn try_bind(self, incoming: impl IntoAddrIncoming) -> IoResult<AcmeListener> {
+    pub async fn try_bind(self, incoming: impl IntoAddrIncoming) -> Result<AcmeListener, crate::Error> {
         let Self {
             config_builder,
             check_duration,
@@ -371,7 +370,7 @@ impl AcmeListenerBuilder {
         }
 
         let listener = AcmeListener {
-            incoming: incoming.into_incoming(),
+            incoming: incoming.into_incoming()?,
             server_config: Arc::new(server_config),
         };
 

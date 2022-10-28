@@ -385,6 +385,7 @@ mod tests {
     use salvo_core::prelude::*;
 
     use super::*;
+    use salvo_core::conn::{Acceptor, Listener};
 
     #[handler]
     async fn connect(req: &mut Request, res: &mut Response) -> Result<(), StatusError> {
@@ -408,12 +409,12 @@ mod tests {
     #[tokio::test]
     async fn test_websocket() {
         let router = Router::new().handle(connect);
-        let listener = TcpListener::bind("127.0.0.1:0");
-        let addr = listener.local_addr();
-        let server = tokio::task::spawn(async {
-            Server::new(listener).serve(router).await;
+        let acceptor = TcpListener::new("127.0.0.1:0").bind().await;
+        let addr = acceptor.holdings()[0].local_addr.clone().into_std().unwrap();
+
+        tokio::spawn(async move {
+            Server::new(acceptor).serve(router).await;
         });
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
         let base_url = format!("http://{}", addr);
         let client = reqwest::Client::new();
@@ -427,6 +428,5 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::SWITCHING_PROTOCOLS);
-        server.abort();
     }
 }

@@ -87,7 +87,7 @@ where
         };
 
         let end = ready!(self.try_recv(cx))?;
-        let data = self.bufs.take_chunk(self.remaining_data as usize);
+        let data = self.bufs.take_chunk(self.remaining_data);
 
         match (data, end) {
             (None, true) => Poll::Ready(Ok(None)),
@@ -212,7 +212,7 @@ impl FrameDecoder {
             let (pos, decoded) = {
                 let mut cur = src.cursor();
                 let decoded = Frame::decode(&mut cur);
-                (cur.position() as usize, decoded)
+                (cur.position(), decoded)
             };
 
             match decoded {
@@ -258,7 +258,6 @@ mod tests {
     use bytes::{BufMut, BytesMut};
     use futures_util::future::poll_fn;
     use std::{collections::VecDeque, fmt, sync::Arc};
-    use tokio;
 
     use crate::{
         proto::{coding::Encode, frame::FrameType, varint::VarInt},

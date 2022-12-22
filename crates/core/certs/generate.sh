@@ -108,4 +108,11 @@ openssl pkcs12 -export \
     -out identity.p12 \
     -passout pass:mypass
 
+openssl pkcs12 -export -legacy \
+    -inkey rsa/inter.key \
+    -in rsa/inter.cert \
+    -certfile rsa/end.chain \
+    -out identity-legacy.p12 \
+    -passout pass:mypass
+
 rm -rf rsa

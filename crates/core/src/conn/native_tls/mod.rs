@@ -15,10 +15,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_native_tls_listener() {
+        let identity = if cfg!(target_os = "macos") {
+            include_bytes!("../../../certs/identity-legacy.p12").to_vec()
+        } else {
+            include_bytes!("../../../certs/identity.p12").to_vec()
+        };
+
         let mut acceptor = TcpListener::new("127.0.0.1:0")
             .native_tls(
                 NativeTlsConfig::new()
-                    .with_pkcs12(include_bytes!("../../../certs/identity.p12").as_ref())
+                    .with_pkcs12(identity)
                     .with_password("mypass"),
             )
             .bind()

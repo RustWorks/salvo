@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use super::filter;
 use super::{Filter, FnFilter, PathFilter, PathState};
+use crate::handler::{Handler, WhenHoop};
 use crate::http::uri::Scheme;
-use crate::http::Request;
-use crate::Handler;
+use crate::{Depot, Request};
 
 /// Router struct is used for route request to different handlers.
 ///
@@ -171,7 +171,7 @@ impl Router {
             if path_state.ended() {
                 return Some(DetectMatched {
                     hoops: self.hoops.clone(),
-                    handler: handler.clone(),
+                    handler,
                 });
             }
         }
@@ -200,10 +200,33 @@ impl Router {
     }
 
     /// Add a handler as middleware, it will run the handler in current router or it's descendants
+    /// handle the request. This middleware only effective when the filter return true.
+    #[inline]
+    pub fn with_hoop_when<H, F>(handler: H, filter: F) -> Self
+    where
+        H: Handler,
+        F: Fn(&Request, &Depot) -> bool + Send + Sync + 'static,
+    {
+        Router::new().hoop_when(handler, filter)
+    }
+
+    /// Add a handler as middleware, it will run the handler in current router or it's descendants
     /// handle the request.
     #[inline]
     pub fn hoop<H: Handler>(mut self, handler: H) -> Self {
         self.hoops.push(Arc::new(handler));
+        self
+    }
+
+    /// Add a handler as middleware, it will run the handler in current router or it's descendants
+    /// handle the request. This middleware only effective when the filter return true.
+    #[inline]
+    pub fn hoop_when<H, F>(mut self, handler: H, filter: F) -> Self
+    where
+        H: Handler,
+        F: Fn(&Request, &Depot) -> bool + Send + Sync + 'static,
+    {
+        self.hoops.push(Arc::new(WhenHoop { inner: handler, filter }));
         self
     }
 
@@ -367,7 +390,7 @@ impl fmt::Debug for Router {
                 path = "!NULL!".to_owned();
             } else {
                 for filter in &router.filters {
-                    let info = format!("{:?}", filter);
+                    let info = format!("{filter:?}");
                     if info.starts_with("path:") {
                         path = info.split_once(':').unwrap().1.to_owned();
                     } else {
@@ -379,9 +402,9 @@ impl fmt::Debug for Router {
                 }
             }
             let cp = if last {
-                format!("{}{}{}{}", prefix, SYMBOL_ELL, SYMBOL_RIGHT, SYMBOL_RIGHT)
+                format!("{prefix}{SYMBOL_ELL}{SYMBOL_RIGHT}{SYMBOL_RIGHT}")
             } else {
-                format!("{}{}{}{}", prefix, SYMBOL_TEE, SYMBOL_RIGHT, SYMBOL_RIGHT)
+                format!("{prefix}{SYMBOL_TEE}{SYMBOL_RIGHT}{SYMBOL_RIGHT}")
             };
             let hd = if let Some(handler) = &router.handler {
                 format!(" -> {}", handler.type_name())
@@ -389,16 +412,16 @@ impl fmt::Debug for Router {
                 "".into()
             };
             if !others.is_empty() {
-                writeln!(f, "{}{}[{}]{}", cp, path, others.join(","), hd)?;
+                writeln!(f, "{cp}{path}[{}]{hd}", others.join(","))?;
             } else {
-                writeln!(f, "{}{}{}", cp, path, hd)?;
+                writeln!(f, "{cp}{path}{hd}")?;
             }
             let routers = router.routers();
             if !routers.is_empty() {
                 let np = if last {
-                    format!("{}    ", prefix)
+                    format!("{prefix}    ")
                 } else {
-                    format!("{}{}   ", prefix, SYMBOL_DOWN)
+                    format!("{prefix}{SYMBOL_DOWN}   ")
                 };
                 for (i, router) in routers.iter().enumerate() {
                     print(f, &np, i == routers.len() - 1, router)?;

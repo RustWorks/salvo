@@ -85,13 +85,13 @@ pub struct LazyExtract<T> {
     _inner: PhantomData<T>,
 }
 
-impl<'de, T: Extractible<'de>> Default for LazyExtract<T> {
+impl<'de, T: Extractible<'de> + Send> Default for LazyExtract<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'de, T: Extractible<'de>> LazyExtract<T> {
+impl<'de, T: Extractible<'de> + Send> LazyExtract<T> {
     /// Create a new `LazyExtract` instance.
     pub fn new() -> Self {
         LazyExtract {
@@ -106,7 +106,7 @@ impl<'de, T: Extractible<'de>> LazyExtract<T> {
 }
 impl<'de, T> Extractible<'de> for LazyExtract<T>
 where
-    T: Extractible<'de>,
+    T: Extractible<'de> + Send,
 {
     fn metadata() -> &'de Metadata {
         T::metadata()

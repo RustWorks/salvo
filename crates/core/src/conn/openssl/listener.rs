@@ -28,7 +28,7 @@ pub struct OpensslListener<C, T> {
 
 impl<C, T> OpensslListener<C, T>
 where
-    C: IntoConfigStream<OpensslConfig>,
+    C: IntoConfigStream<OpensslConfig> + Send + 'static,
     T: Listener + Send,
 {
     /// Create new OpensslListener with config stream.
@@ -41,7 +41,7 @@ where
 #[async_trait]
 impl<C, T> Listener for OpensslListener<C, T>
 where
-    C: IntoConfigStream<OpensslConfig>,
+    C: IntoConfigStream<OpensslConfig> + Send + 'static,
     T: Listener + Send,
     T::Acceptor: Send + 'static,
 {
@@ -59,6 +59,7 @@ where
     }
 }
 
+/// OpensslAcceptor
 pub struct OpensslAcceptor<C, T> {
     config_stream: C,
     inner: T,
@@ -69,6 +70,7 @@ impl<C, T> OpensslAcceptor<C, T>
 where
     T: Acceptor,
 {
+    /// Create new OpensslAcceptor.
     pub fn new(config_stream: C, inner: T) -> OpensslAcceptor<C, T> {
         let holdings = inner
             .holdings()

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::{self, Formatter};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use once_cell::sync::Lazy;
-use parking_lot::RwLock;
 use regex::Regex;
 
 use crate::http::Request;
@@ -94,7 +93,7 @@ where
             } else {
                 let min = ps[0]
                     .parse::<usize>()
-                    .map_err(|_| format!("parse range for {} failed", name))?;
+                    .map_err(|_| format!("parse range for {name} failed"))?;
                 if min < 1 {
                     return Err("min_width must greater or equal to 1".to_owned());
                 }
@@ -111,7 +110,7 @@ where
                     let max = if trimed_max == max {
                         let max = trimed_max
                             .parse::<usize>()
-                            .map_err(|_| format!("parse range for {} failed", name))?;
+                            .map_err(|_| format!("parse range for {name} failed"))?;
                         if max <= 1 {
                             return Err("min_width must greater than 1".to_owned());
                         }
@@ -119,7 +118,7 @@ where
                     } else {
                         let max = trimed_max
                             .parse::<usize>()
-                            .map_err(|_| format!("parse range for {} failed", name))?;
+                            .map_err(|_| format!("parse range for {name} failed"))?;
                         if max < 1 {
                             return Err("min_width must greater or equal to 1".to_owned());
                         }
@@ -506,7 +505,7 @@ impl PathParser {
                                 }
                             }
                             if self.next(false).is_none() {
-                                return Err(format!("ended unexcept, should end with: {}", rb));
+                                return Err(format!("ended unexcept, should end with: {rb}"));
                             }
                             if args.is_empty() {
                                 vec![]
@@ -522,10 +521,10 @@ impl PathParser {
                                 self.offset
                             ));
                         };
-                        let builders = WISP_BUILDERS.read();
+                        let builders = WISP_BUILDERS.read().unwrap();
                         let builder = builders
                             .get(&sign)
-                            .ok_or_else(|| format!("WISP_BUILDERS does not contains fn part with sign {}", sign))?
+                            .ok_or_else(|| format!("WISP_BUILDERS does not contains fn part with sign {sign}"))?
                             .clone();
 
                         wisps.push(builder.build(name, sign, args)?);
@@ -654,13 +653,13 @@ impl PathFilter {
     where
         B: WispBuilder + 'static,
     {
-        let mut builders = WISP_BUILDERS.write();
+        let mut builders = WISP_BUILDERS.write().unwrap();
         builders.insert(name.into(), Arc::new(Box::new(builder)));
     }
     /// Register new path part regex.
     #[inline]
     pub fn register_wisp_regex(name: impl Into<String>, regex: Regex) {
-        let mut builders = WISP_BUILDERS.write();
+        let mut builders = WISP_BUILDERS.write().unwrap();
         builders.insert(name.into(), Arc::new(Box::new(RegexWispBuilder::new(regex))));
     }
     /// Detect is that path is match.

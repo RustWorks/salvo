@@ -5,6 +5,7 @@
 #![deny(private_in_public, unreachable_pub)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+#![warn(clippy::future_not_send)]
 
 pub use async_trait::async_trait;
 pub use hyper;
@@ -56,7 +57,7 @@ pub mod prelude {
     pub use crate::depot::Depot;
     pub use crate::http::{Request, Response, StatusCode, StatusError};
     // cfg_feature! {
-    //     #![feature ="acme"]
+    //     #![feature = "acme"]
     //     pub use crate::conn::AcmeListener;
     // }
     cfg_feature! {
@@ -81,7 +82,7 @@ pub mod prelude {
     }
     pub use crate::conn::{JoinedListener, Listener, TcpListener};
     pub use crate::extract::LazyExtract;
-    pub use crate::handler::{empty_handler, Handler};
+    pub use crate::handler::{self, Handler};
     pub use crate::routing::{FlowCtrl, Router};
     pub use crate::server::Server;
     pub use crate::service::Service;

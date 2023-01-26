@@ -2,6 +2,7 @@
 use salvo_core::http::header::{HeaderName, PROXY_AUTHORIZATION, AUTHORIZATION};
 use salvo_core::http::{Request, Response, StatusCode};
 use salvo_core::{async_trait, Depot, Error, FlowCtrl, Handler};
+use base64::engine::{general_purpose, Engine};
 
 /// key used when insert into depot.
 pub const USERNAME_KEY: &str = "::salvo::basic_auth::username";
@@ -11,7 +12,7 @@ pub const USERNAME_KEY: &str = "::salvo::basic_auth::username";
 pub trait BasicAuthValidator: Send + Sync {
     /// Validate is that username and password is right.
     #[must_use = "validate future must be used"]
-    async fn validate(&self, username: &str, password: &str) -> bool;
+    async fn validate(&self, username: &str, password: &str, depot: &mut Depot) -> bool;
 }
 /// BasicAuthDepotExt
 pub trait BasicAuthDepotExt {
@@ -91,7 +92,7 @@ pub fn parse_credentials(req: &Request, header_names: &[HeaderName]) -> Result<(
 
     if authorization.starts_with("Basic") {
         if let Some((_, auth)) = authorization.split_once(' ') {
-            let auth = base64::decode(auth).map_err(Error::other)?;
+            let auth = general_purpose::STANDARD.decode(auth).map_err(Error::other)?;
             let auth = auth.iter().map(|&c| c as char).collect::<String>();
             if let Some((username, password)) = auth.split_once(':') {
                 return Ok((username.to_owned(), password.to_owned()));
@@ -110,7 +111,7 @@ where
 {
     async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
         if let Ok((username, password)) = self.parse_credentials(req) {
-            if self.validator.validate(&username, &password).await {
+            if self.validator.validate(&username, &password, depot).await {
                 depot.insert(USERNAME_KEY, username);
                 ctrl.call_next(req, depot, res).await;
                 return;
@@ -136,7 +137,7 @@ mod tests {
     struct Validator;
     #[async_trait]
     impl BasicAuthValidator for Validator {
-        async fn validate(&self, username: &str, password: &str) -> bool {
+        async fn validate(&self, username: &str, password: &str, _depot: &mut Depot) -> bool {
             username == "root" && password == "pwd"
         }
     }

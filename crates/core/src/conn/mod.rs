@@ -48,7 +48,7 @@ cfg_feature! {
 pub mod addr;
 pub use addr::SocketAddr;
 
-mod tcp;
+pub mod tcp;
 pub use tcp::TcpListener;
 
 mod joined;
@@ -70,7 +70,7 @@ cfg_feature! {
 
 #[cfg(any(feature = "rustls", feature = "native-tls", feature = "openssl"))]
 /// A type that can convert into tls config stream.
-pub trait IntoConfigStream<C>: Send + 'static {
+pub trait IntoConfigStream<C> {
     /// TLS config stream.
     type Stream: futures_util::Stream<Item = C> + Send + 'static;
 

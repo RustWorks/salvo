@@ -30,6 +30,11 @@ cfg_feature! {
     pub use salvo_extra::caching_headers;
 }
 cfg_feature! {
+    #![feature ="catch-panic"]
+    #[doc(no_inline)]
+    pub use salvo_extra::catch_panic;
+}
+cfg_feature! {
     #![feature ="compression"]
     #[doc(no_inline)]
     pub use salvo_extra::compression;
@@ -48,11 +53,6 @@ cfg_feature! {
     #![feature ="logging"]
     #[doc(no_inline)]
     pub use salvo_extra::logging;
-}
-cfg_feature! {
-    #![feature ="proxy"]
-    #[doc(no_inline)]
-    pub use salvo_extra::proxy;
 }
 cfg_feature! {
     #![feature ="size-limiter"]
@@ -100,6 +100,11 @@ cfg_feature! {
     pub use salvo_flash as flash;
 }
 cfg_feature! {
+    #![feature ="proxy"]
+    #[doc(no_inline)]
+    pub use salvo_proxy as proxy;
+}
+cfg_feature! {
     #![feature ="rate-limiter"]
     #[doc(no_inline)]
     pub use salvo_rate_limiter as rate_limiter;
@@ -112,7 +117,7 @@ cfg_feature! {
 cfg_feature! {
     #![feature ="serve-static"]
     #[doc(no_inline)]
-    pub use salvo_static as serve_static;
+    pub use salvo_serve_static as serve_static;
 }
 
 /// A list of things that automatically imports into application use salvo.
@@ -131,8 +136,16 @@ pub mod prelude {
         pub use salvo_extra::caching_headers::CachingHeaders;
     }
     cfg_feature! {
+        #![feature ="catch-panic"]
+        pub use salvo_extra::catch_panic::CatchPanic;
+    }
+    cfg_feature! {
         #![feature ="compression"]
         pub use salvo_extra::compression::{Compression, CompressionAlgo};
+    }
+    cfg_feature! {
+        #![feature ="csrf"]
+        pub use salvo_csrf::CsrfDepotExt;
     }
     cfg_feature! {
         #![feature ="force-https"]
@@ -148,7 +161,7 @@ pub mod prelude {
     }
     cfg_feature! {
         #![feature ="proxy"]
-        pub use salvo_extra::proxy::Proxy;
+        pub use salvo_proxy::Proxy;
     }
     cfg_feature! {
         #![feature ="size-limiter"]
@@ -169,5 +182,9 @@ pub mod prelude {
     cfg_feature! {
         #![feature ="ws"]
         pub use salvo_extra::ws::WebSocketUpgrade;
+    }
+    cfg_feature! {
+        #![feature ="serve-static"]
+        pub use salvo_serve_static::{StaticFile, StaticDir};
     }
 }

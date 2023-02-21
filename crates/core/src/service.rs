@@ -3,8 +3,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use headers::HeaderValue;
-use http::header::{ALT_SVC, CONTENT_TYPE, HOST};
-use http::uri::{Authority, Scheme, Uri};
+use http::header::{ALT_SVC, CONTENT_TYPE};
+use http::uri::Scheme;
 use hyper::service::Service as HyperService;
 use hyper::{Method, Request as HyperRequest, Response as HyperResponse};
 
@@ -188,16 +188,11 @@ impl HyperHandler {
                 req.params = path_state.params;
                 let mut ctrl = FlowCtrl::new([&dm.hoops[..], &[dm.handler]].concat());
                 ctrl.call_next(&mut req, &mut depot, &mut res).await;
-            } else {
-                res.set_status_code(StatusCode::NOT_FOUND);
-            }
-
-            if res.status_code().is_none() {
-                if res.body.is_none() {
-                    res.set_status_code(StatusCode::NOT_FOUND);
-                } else {
+                if res.status_code().is_none() {
                     res.set_status_code(StatusCode::OK);
                 }
+            } else {
+                res.set_status_code(StatusCode::NOT_FOUND);
             }
 
             let status = res.status_code().unwrap();
@@ -277,14 +272,14 @@ where
         if req.uri().scheme().is_none() {
             if let Some(host) = req
                 .headers()
-                .get(HOST)
+                .get(http::header::HOST)
                 .and_then(|host| host.to_str().ok())
-                .and_then(|host| host.parse::<Authority>().ok())
+                .and_then(|host| host.parse::<http::uri::Authority>().ok())
             {
                 let mut uri_parts = std::mem::take(req.uri_mut()).into_parts();
                 uri_parts.scheme = Some(scheme.clone());
                 uri_parts.authority = Some(host);
-                if let Ok(uri) = Uri::from_parts(uri_parts) {
+                if let Ok(uri) = http::uri::Uri::from_parts(uri_parts) {
                     *req.uri_mut() = uri;
                 }
             }
@@ -346,7 +341,7 @@ mod tests {
         let service = Service::new(router);
 
         async fn access(service: &Service, b: &str) -> String {
-            TestClient::get(format!("http://127.0.0.1:7979/level1/level2/hello?b={}", b))
+            TestClient::get(format!("http://127.0.0.1:5801/level1/level2/hello?b={}", b))
                 .send(service)
                 .await
                 .take_string()

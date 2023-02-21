@@ -41,9 +41,10 @@ affix = ["salvo_extra/affix"]
 basic-auth = ["salvo_extra/basic-auth"]
 force-https = ["salvo_extra/force-https"]
 jwt-auth = ["salvo_extra/jwt-auth"]
+catch-panic = ["salvo_extra/catch-panic"]
 compression = ["salvo_extra/compression"]
 logging = ["salvo_extra/logging"]
-# proxy = ["salvo_extra/proxy"]
+proxy = ["salvo-proxy"]
 size-limiter = ["salvo_extra/size-limiter"]
 sse = ["salvo_extra/sse"]
 trailing-slash = ["salvo_extra/trailing-slash"]
@@ -56,15 +57,16 @@ csrf = ["dep:salvo-csrf"]
 flash = ["dep:salvo-flash"]
 rate-limiter = ["dep:salvo-rate-limiter"]
 session = ["dep:salvo-session"]
-serve-static = ["dep:salvo-static"]
+serve-static = ["dep:salvo-serve-static"]
 
 [dependencies]
-salvo_core = { workspace = true, default-features = false, path = "../core" }
-salvo_extra = { workspace = true, default-features = false, optional = true, path = "../extra" }
-salvo-cache = { workspace = true, optional = true, path = "../cache" }
-salvo-cors = { workspace = true, optional = true, path = "../cors" }
-salvo-csrf = { workspace = true, features = ["all"], optional = true, path = "../csrf" }
-salvo-flash = { workspace = true, features = ["all"], optional = true, path = "../flash" }
-salvo-rate-limiter = { workspace = true, features = ["all"], optional = true, path = "../rate-limiter" }
-salvo-session = { workspace = true, optional = true, path = "../session" }
-salvo-static = { workspace = true, features = ["all"], optional = true, path = "../static" }
+salvo_core = { workspace = true }
+salvo_extra = { workspace = true, features = ["default"], optional = true }
+salvo-cache = { workspace = true, features = ["default"], optional = true }
+salvo-cors = { workspace = true, optional = true }
+salvo-csrf = { workspace = true, features = ["all"], optional = true }
+salvo-flash = { workspace = true, features = ["all"], optional = true }
+salvo-rate-limiter = { workspace = true, optional = true }
+salvo-session = { workspace = true, optional = true }
+salvo-serve-static = { workspace = true, features = ["all"], optional = true }
+salvo-proxy = { workspace = true, optional = true }

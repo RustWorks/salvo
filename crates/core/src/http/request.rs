@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 use std::fmt::{self, Formatter};
-use std::sync::RwLock;
 
+use bytes::Bytes;
 #[cfg(feature = "cookie")]
 use cookie::{Cookie, CookieJar};
 use http::header::{AsHeaderName, HeaderMap, HeaderValue, IntoHeaderName};
@@ -15,6 +15,7 @@ use http_body_util::{BodyExt, Limited};
 use mime;
 use multimap::MultiMap;
 use once_cell::sync::OnceCell;
+use parking_lot::RwLock;
 use serde::de::Deserialize;
 
 use crate::conn::SocketAddr;
@@ -29,12 +30,12 @@ static SECURE_MAX_SIZE: RwLock<usize> = RwLock::new(64 * 1024);
 
 /// Get default secure max size.
 pub fn secure_max_size() -> usize {
-    *SECURE_MAX_SIZE.read().unwrap()
+    *SECURE_MAX_SIZE.read()
 }
 
 /// Set default secure max size globally.
 pub fn set_secure_max_size(size: usize) {
-    let mut lock = SECURE_MAX_SIZE.write().unwrap();
+    let mut lock = SECURE_MAX_SIZE.write();
     *lock = size;
 }
 
@@ -63,7 +64,7 @@ pub struct Request {
     // accept: Option<Vec<Mime>>,
     pub(crate) queries: OnceCell<MultiMap<String, String>>,
     pub(crate) form_data: tokio::sync::OnceCell<FormData>,
-    pub(crate) payload: tokio::sync::OnceCell<Vec<u8>>,
+    pub(crate) payload: tokio::sync::OnceCell<Bytes>,
 
     /// The version of the HTTP protocol used.
     pub(crate) version: Version,
@@ -549,7 +550,7 @@ impl Request {
     /// https://github.com/hyperium/hyper/issues/3111
     /// *Notice: This method takes body.
     #[inline]
-    pub async fn payload(&mut self) -> Result<&Vec<u8>, ParseError> {
+    pub async fn payload(&mut self) -> Result<&Bytes, ParseError> {
         self.payload_with_max_size(secure_max_size()).await
     }
 
@@ -558,7 +559,7 @@ impl Request {
     /// https://github.com/hyperium/hyper/issues/3111
     /// *Notice: This method takes body.
     #[inline]
-    pub async fn payload_with_max_size(&mut self, max_size: usize) -> Result<&Vec<u8>, ParseError> {
+    pub async fn payload_with_max_size(&mut self, max_size: usize) -> Result<&Bytes, ParseError> {
         let body = self.take_body();
         self.payload
             .get_or_try_init(|| async {
@@ -566,8 +567,7 @@ impl Request {
                     .collect()
                     .await
                     .map_err(ParseError::other)?
-                    .to_bytes()
-                    .to_vec())
+                    .to_bytes())
             })
             .await
     }
@@ -752,7 +752,7 @@ mod tests {
             weapons: u64,
         }
         let mut req = TestClient::get(
-            "http://127.0.0.1:7979/hello?name=rust&age=25&wives=a&wives=2&weapons=69&weapons=stick&weapons=gun",
+            "http://127.0.0.1:5801/hello?name=rust&age=25&wives=a&wives=2&weapons=69&weapons=stick&weapons=gun",
         )
         .build();
         let man = req.parse_queries::<BadMan>().unwrap();
@@ -773,14 +773,14 @@ mod tests {
         struct User {
             name: String,
         }
-        let mut req = TestClient::get("http://127.0.0.1:7878/hello")
+        let mut req = TestClient::get("http://127.0.0.1:5800/hello")
             .json(&User { name: "jobs".into() })
             .build();
         assert_eq!(req.parse_json::<User>().await.unwrap(), User { name: "jobs".into() });
     }
     #[tokio::test]
     async fn test_query() {
-        let req = TestClient::get("http://127.0.0.1:7979/hello?name=rust&name=25&name=a&name=2&weapons=98&weapons=gun")
+        let req = TestClient::get("http://127.0.0.1:5801/hello?name=rust&name=25&name=a&name=2&weapons=98&weapons=gun")
             .build();
         assert_eq!(req.queries().len(), 2);
         assert_eq!(req.query::<String>("name").unwrap(), "rust");
@@ -793,7 +793,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_form() {
-        let mut req = TestClient::post("http://127.0.0.1:7878/hello?q=rust")
+        let mut req = TestClient::post("http://127.0.0.1:5800/hello?q=rust")
             .add_header("content-type", "application/x-www-form-urlencoded", true)
             .raw_form("lover=dog&money=sh*t&q=firefox")
             .build();
@@ -801,7 +801,7 @@ mod tests {
         assert_eq!(req.query_or_form::<String>("q").await.unwrap(), "rust");
         assert_eq!(req.form_or_query::<String>("q").await.unwrap(), "firefox");
 
-        let mut req: Request = TestClient::post("http://127.0.0.1:7878/hello?q=rust")
+        let mut req: Request = TestClient::post("http://127.0.0.1:5800/hello?q=rust")
             .add_header(
                 "content-type",
                 "multipart/form-data; boundary=----WebKitFormBoundary0mkL0yrNNupCojyz",

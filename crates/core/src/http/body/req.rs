@@ -13,8 +13,10 @@ use bytes::Bytes;
 use crate::BoxedError;
 
 /// Body for request.
+#[derive(Default)]
 pub enum ReqBody {
     /// None body.
+    #[default]
     None,
     /// Once bytes body.
     Once(Bytes),
@@ -34,15 +36,9 @@ impl fmt::Debug for ReqBody {
     }
 }
 
-impl Default for ReqBody {
-    fn default() -> Self {
-        ReqBody::None
-    }
-}
-
 impl Body for ReqBody {
     type Data = Bytes;
-    type Error = BoxedError;
+    type Error = IoError;
 
     fn poll_frame(
         mut self: Pin<&mut Self>,
@@ -58,8 +54,12 @@ impl Body for ReqBody {
                     Poll::Ready(Some(Ok(Frame::data(bytes))))
                 }
             }
-            ReqBody::Hyper(body) => Pin::new(body).poll_frame(cx).map_err(|e| e.into()),
-            ReqBody::Inner(inner) => Pin::new(inner).poll_frame(cx),
+            ReqBody::Hyper(body) => Pin::new(body)
+                .poll_frame(cx)
+                .map_err(|e| IoError::new(ErrorKind::Other, e)),
+            ReqBody::Inner(inner) => Pin::new(inner)
+                .poll_frame(cx)
+                .map_err(|e| IoError::new(ErrorKind::Other, e)),
         }
     }
 
@@ -67,7 +67,7 @@ impl Body for ReqBody {
         match self {
             ReqBody::None => true,
             ReqBody::Once(bytes) => bytes.is_empty(),
-            ReqBody::Hyper(recv) => recv.is_end_stream(),
+            ReqBody::Hyper(body) => body.is_end_stream(),
             ReqBody::Inner(inner) => inner.is_end_stream(),
         }
     }
@@ -76,7 +76,7 @@ impl Body for ReqBody {
         match self {
             ReqBody::None => SizeHint::with_exact(0),
             ReqBody::Once(bytes) => SizeHint::with_exact(bytes.len() as u64),
-            ReqBody::Hyper(recv) => recv.size_hint(),
+            ReqBody::Hyper(body) => body.size_hint(),
             ReqBody::Inner(inner) => inner.size_hint(),
         }
     }

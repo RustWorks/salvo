@@ -8,11 +8,11 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use crate::async_trait;
 use crate::http::{HttpConnection, Version};
 
-// cfg_feature! {
-//     #![feature = "acme"]
-//     pub mod acme;
-//     pub use acme::AcmeListener;
-// }
+cfg_feature! {
+    #![feature = "acme"]
+    pub mod acme;
+    pub use acme::AcmeListener;
+}
 cfg_feature! {
     #![feature = "native-tls"]
     pub mod native_tls;
@@ -66,6 +66,47 @@ cfg_feature! {
     #![any(feature = "native-tls", feature = "rustls", feature = "openssl", feature = "acme")]
     mod tls_conn_stream;
     pub use tls_conn_stream::TlsConnStream;
+}
+
+cfg_feature! {
+    #![any(feature = "rustls", feature = "acme")]
+    mod sealed {
+        use std::io::{Error as IoError, ErrorKind, Result as IoResult};
+        use std::sync::Arc;
+
+        use tokio_rustls::server::TlsStream;
+        use tokio::io::{AsyncRead, AsyncWrite};
+
+        use crate::async_trait;
+        use crate::service::HyperHandler;
+        use crate::http::{version_from_alpn, HttpConnection, Version};
+        use crate::conn::HttpBuilders;
+
+        #[cfg(any(feature = "rustls", feature = "acme"))]
+        #[async_trait]
+        impl<S> HttpConnection for TlsStream<S>
+        where
+            S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+        {
+            async fn version(&mut self) -> Option<Version> {
+                self.get_ref().1.alpn_protocol().map(version_from_alpn)
+            }
+            async fn serve(self, handler: HyperHandler, builders: Arc<HttpBuilders>) -> IoResult<()> {
+                #[cfg(not(feature = "http2"))]
+                {
+                    let _ = handler;
+                    let _ = builders;
+                    panic!("http2 feature is required");
+                }
+                #[cfg(feature = "http2")]
+                builders
+                    .http2
+                    .serve_connection(self, handler)
+                    .await
+                    .map_err(|e| IoError::new(ErrorKind::Other, e.to_string()))
+            }
+        }
+    }
 }
 
 #[cfg(any(feature = "rustls", feature = "native-tls", feature = "openssl"))]

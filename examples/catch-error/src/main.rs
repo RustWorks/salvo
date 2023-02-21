@@ -11,7 +11,7 @@ impl Writer for CustomError {
 
 #[handler]
 async fn handle_anyhow() -> Result<(), anyhow::Error> {
-    Err(anyhow::anyhow!("anyhow error"))
+    Err(anyhow::anyhow!("handled anyhow error"))
 }
 #[handler]
 async fn handle_custom() -> Result<(), CustomError> {
@@ -26,6 +26,6 @@ async fn main() {
         .push(Router::with_path("anyhow").get(handle_anyhow))
         .push(Router::with_path("custom").get(handle_custom));
 
-    let acceptor = TcpListener::new("127.0.0.1:7878").bind().await;
+    let acceptor = TcpListener::new("127.0.0.1:5800").bind().await;
     Server::new(acceptor).serve(router).await;
 }

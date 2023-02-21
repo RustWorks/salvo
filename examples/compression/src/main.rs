@@ -1,6 +1,5 @@
 use salvo::compression::{Compression, CompressionAlgo};
 use salvo::prelude::*;
-use salvo_static::*;
 
 #[tokio::main]
 async fn main() {
@@ -35,6 +34,6 @@ async fn main() {
                 .get(StaticDir::new(base_dir)),
         );
 
-    let acceptor = TcpListener::new("127.0.0.1:7878").bind().await;
+    let acceptor = TcpListener::new("127.0.0.1:5800").bind().await;
     Server::new(acceptor).serve(router).await;
 }

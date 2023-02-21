@@ -1,6 +1,6 @@
 [package]
-name = "salvo-static"
-version.workspace = true
+name = "salvo-serve-static"
+version = "0.0.1"
 authors.workspace = true
 edition.workspace = true
 description = """
@@ -32,7 +32,7 @@ rust-embed = { workspace = true, optional = true }
 salvo_core = { workspace = true, default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-time = {workspace = true, features = ["serde"] }
+time = {workspace = true, features = ["formatting", "serde"] }
 tracing.workspace = true
 tokio.workspace = true
 

@@ -29,6 +29,18 @@ pub(crate) enum Flag {
 }
 
 /// A file with an associated name.
+///
+/// This struct represents a file with an associated name. It provides methods for opening and sending the file,
+/// as well as setting various headers such as `Content-Type` and `Content-Disposition`.
+///
+/// # Examples
+///
+/// ```
+/// # use salvo_core::fs::NamedFile;
+/// # async fn open() {
+/// let file = NamedFile::open("foo.txt").await;
+/// # }
+///
 #[derive(Debug)]
 pub struct NamedFile {
     path: PathBuf,

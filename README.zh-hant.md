@@ -16,6 +16,9 @@
     <img alt="build status" src="https://github.com/salvo-rs/salvo/workflows/ci-windows/badge.svg?branch=main&event=push" />
 </a>
 <br>
+<a href="https://discord.gg/rUHf3spK">
+    <img src="https://img.shields.io/discord/1041442427006890014.svg?logo=discord">
+</a>
 <a href="https://crates.io/crates/salvo"><img alt="crates.io" src="https://img.shields.io/crates/v/salvo" /></a>
 <a href="https://docs.rs/salvo"><img alt="Documentation" src="https://docs.rs/salvo/badge.svg" /></a>
 <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg" /></a>
@@ -67,7 +70,7 @@ cargo new hello_salvo --bin
 salvo = "*"
 tokio = { version = "1", features = ["macros"] }
 ```
-在 `main.rs` 中創建一個簡單的函數句柄, 命名為`hello`, 這個函數隻是簡單地打印文本 ```"Hello World"```.
+在 `main.rs` 中創建一個簡單的函數句柄, 命名為`hello`, 這個函數隻是簡單地打印文本 `"Hello World"`.
 
 ```rust
 use salvo::prelude::*;
@@ -99,7 +102,7 @@ async fn add_header(res: &mut Response) {
 Router::new().hoop(add_header).get(hello)
 ```
 
-這就是一個簡單的中間件, 它嚮 ```Response``` 的頭部添加了 ```Header```, 查看[完整源碼](https://github.com/salvo-rs/salvo/blob/main/examples/middleware-add-header/src/main.rs).
+這就是一個簡單的中間件, 它嚮 `Response` 的頭部添加了 `Header`, 查看[完整源碼](https://github.com/salvo-rs/salvo/blob/main/examples/middleware-add-header/src/main.rs).
 
 
 ### 可鏈式書寫的樹狀路由係統
@@ -131,7 +134,7 @@ Router::with_path("articles")
     .push(Router::with_path("<id>").patch(edit_article).delete(delete_article));
 ```
 
-雖然這兩個路由都有這同樣的 ```path("articles")```, 然而它們依然可以被同時添加到同一個父路由, 所以最後的路由長成了這個樣子:
+雖然這兩個路由都有這同樣的 `path("articles")`, 然而它們依然可以被同時添加到同一個父路由, 所以最後的路由長成了這個樣子:
 
 ```rust
 Router::new()
@@ -148,9 +151,9 @@ Router::new()
     );
 ```
 
-```<id>```匹配了路徑中的一個片段, 正常情況下文章的 ```id``` 隻是一個數字, 這是我們可以使用正則錶達式限製 ```id``` 的匹配規則, ```r"<id:/\d+/>"```. 
+`<id>` 匹配了路徑中的一個片段, 正常情況下文章的 `id` 隻是一個數字, 這是我們可以使用正則錶達式限製 `id` 的匹配規則, `r"<id:/\d+/>"`. 
 
-還可以通過 ```<*>``` 或者 ```<**>``` 匹配所有剩餘的路徑片段. 為了代碼易讀性性強些, 也可以添加適合的名字, 讓路徑語義更清晰, 比如: ```<**file_path>```.
+還可以通過 `<*>` 或者 `<**>` 匹配所有剩餘的路徑片段. 為了代碼易讀性性強些, 也可以添加適合的名字, 讓路徑語義更清晰, 比如: `<**file_path>`.
 
 有些用於匹配路徑的正則錶達式需要經常被使用, 可以將它事先註冊, 比如 GUID:
 
@@ -171,7 +174,7 @@ Router::with_path("<id:guid>").get(index)
 
 ### 文件上傳
 
-可以通過 ```Request``` 中的 ```file``` 異步獲取上傳的文件:
+可以通過 `Request` 中的 `file` 異步獲取上傳的文件:
 
 ```rust
 #[handler]
@@ -209,7 +212,7 @@ struct GoodMan<'a> {
 }
 ```
 
-然後在 ```Handler``` 中可以這樣獲取數據:
+然後在 `Handler` 中可以這樣獲取數據:
 
 ```rust
 #[handler]
@@ -271,7 +274,7 @@ struct Nested<'a> {
 cargo run --bin example-basic-auth
 ```
 
-您可以使用任何你想運行的示例名稱替代這裏的 ```basic-auth```.
+您可以使用任何你想運行的示例名稱替代這裏的 `basic-auth`.
 
 ## 🚀 性能
 

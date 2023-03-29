@@ -24,7 +24,6 @@ where
 }
 
 /// A Timer that uses the tokio runtime.
-
 #[derive(Clone, Debug)]
 pub struct TokioTimer;
 
@@ -73,7 +72,6 @@ impl Future for TokioSleep {
 
 // Use HasSleep to get tokio::time::Sleep to implement Unpin.
 // see https://docs.rs/tokio/latest/tokio/time/struct.Sleep.html
-
 impl Sleep for TokioSleep {}
 
 #[inline]
@@ -135,4 +133,58 @@ pub fn run<F: Future>(future: F) {
 pub fn run_with_threads<F: Future>(future: F, threads: usize) {
     let runtime = new_runtime(threads);
     let _ = runtime.block_on(async { future.await });
+}
+
+// Unit tests for TokioExecutor, TokioTimer, and TokioSleep
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyper::rt::Executor;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn test_tokio_executor() {
+        let counter = Arc::new(Mutex::new(0));
+        let counter_clone = counter.clone();
+
+        let fut = async move {
+            let mut counter = counter_clone.lock().unwrap();
+            *counter += 1;
+        };
+
+        let executor = TokioExecutor;
+        executor.execute(fut);
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let counter_value = counter.lock().unwrap();
+        assert_eq!(*counter_value, 1);
+    }
+
+    #[tokio::test]
+    async fn test_tokio_timer() {
+        let timer = TokioTimer;
+        let start = Instant::now();
+        let sleep_duration = Duration::from_millis(100);
+
+        timer.sleep(sleep_duration).await;
+
+        let elapsed = start.elapsed();
+        assert!(elapsed >= sleep_duration);
+    }
+
+    #[tokio::test]
+    async fn test_tokio_sleep() {
+        let sleep_duration = Duration::from_millis(100);
+        let sleep = TokioSleep {
+            inner: Box::pin(tokio::time::sleep(sleep_duration)),
+        };
+
+        let start = Instant::now();
+        sleep.await;
+        let elapsed = start.elapsed();
+
+        assert!(elapsed >= sleep_duration);
+    }
 }

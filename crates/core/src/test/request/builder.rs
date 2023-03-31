@@ -3,14 +3,15 @@ use std::convert::TryInto;
 use std::str;
 use std::sync::Arc;
 
-use base64::engine::{Engine, general_purpose};
+use base64::engine::{general_purpose, Engine};
 use http::header::{self, HeaderMap, HeaderValue, IntoHeaderName};
 use http::uri::Scheme;
 use url::Url;
 
 use crate::http::body::ReqBody;
 use crate::http::Method;
-use crate::{async_trait, Depot, Error, FlowCtrl, Handler, Request, Response, Router, Service};
+use crate::routing::{FlowCtrl, Router};
+use crate::{async_trait, Depot, Error, Handler, Request, Response, Service};
 
 /// `RequestBuilder` is the main way of building requests.
 ///

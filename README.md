@@ -52,7 +52,7 @@ Salvo is an extremely simple and powerful Rust web backend framework. Only basic
    - Acme support, automatically get TLS certificate from [let's encrypt](https://letsencrypt.org/).
 
 ## ⚡️ Quick start
-You can view samples [here](https://github.com/salvo-rs/salvo/tree/main/examples), or view [offical website](https://salvo.rs).
+You can view samples [here](https://github.com/salvo-rs/salvo/tree/main/examples), or view [offical website](https://next.salvo.rs).
 
 Create a new rust project:
 
@@ -64,7 +64,7 @@ Add this to `Cargo.toml`
 
 ```toml
 [dependencies]
-salvo = "*"
+salvo = { git = "https://github.com/salvo-rs/salvo.git" }
 tokio = { version = "1", features = ["macros"] }
 ```
 

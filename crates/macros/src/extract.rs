@@ -48,23 +48,20 @@ impl TryFrom<&Field> for FieldInfo {
 struct ExtractStructInfo {
     default_sources: Vec<SourceInfo>,
     rename_all: Option<String>,
-    internal: bool,
 }
 impl Parse for ExtractStructInfo {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut extract = Self::default();
         while !input.is_empty() {
             let id = input.parse::<syn::Ident>()?;
-            if id.to_string() == "default_source" {
+            if id == "default_source" {
                 let item;
                 syn::parenthesized!(item in input);
                 extract.default_sources.push(item.parse::<SourceInfo>()?);
-            } else if id.to_string() == "rename_all" {
+            } else if id == "rename_all" {
                 input.parse::<Token![=]>()?;
                 let expr = input.parse::<Expr>()?;
                 extract.rename_all = Some(expr_lit_value(&expr)?);
-            } else if id.to_string() == "internal" {
-                extract.internal = true;
             } else {
                 return Err(input.error("unexpected attribute"));
             }
@@ -85,17 +82,17 @@ impl Parse for ExtractFieldInfo {
         let mut extract = Self::default();
         while !input.is_empty() {
             let id = input.parse::<syn::Ident>()?;
-            if id.to_string() == "source" {
+            if id == "source" {
                 let item;
                 syn::parenthesized!(item in input);
                 extract.sources.push(item.parse::<SourceInfo>()?);
-            } else if id.to_string() == "rename" {
+            } else if id == "rename" {
                 input.parse::<Token![=]>()?;
                 print!("rename: 1111");
                 let expr = input.parse::<Expr>()?;
                 extract.rename = Some(expr_lit_value(&expr)?);
                 print!("rename: {:?}", extract.rename);
-            } else if id.to_string() == "alias" {
+            } else if id == "alias" {
                 input.parse::<Token![=]>()?;
                 let expr = input.parse::<Expr>()?;
                 extract.aliases.push(expr_lit_value(&expr)?);
@@ -122,9 +119,9 @@ impl Parse for SourceInfo {
         let fields: Punctuated<MetaNameValue, Token![,]> = Punctuated::parse_terminated(input)?;
         for field in fields {
             let id = field.path.get_ident().unwrap();
-            if id.to_string() == "from" {
+            if id == "from" {
                 source.from = expr_lit_value(&field.value)?;
-            } else if id.to_string() == "format" {
+            } else if id == "format" {
                 source.format = expr_lit_value(&field.value)?;
             } else {
                 return Err(input.error("unexpected attribute"));
@@ -164,8 +161,6 @@ struct ExtractibleArgs {
     generics: Generics,
     fields: Vec<FieldInfo>,
 
-    internal: bool,
-
     default_sources: Vec<SourceInfo>,
     rename_all: Option<String>,
 }
@@ -178,7 +173,10 @@ impl ExtractibleArgs {
         let data = match &input.data {
             syn::Data::Struct(data) => data,
             _ => {
-                return Err(Error::new_spanned(ident, "extractible can only be applied to an struct.").into());
+                return Err(Error::new_spanned(
+                    ident,
+                    "extractible can only be applied to an struct.",
+                ));
             }
         };
         let mut fields = Vec::with_capacity(data.fields.len());
@@ -195,13 +193,11 @@ impl ExtractibleArgs {
         let ExtractStructInfo {
             default_sources,
             rename_all,
-            internal,
         } = extract.unwrap_or_default();
         Ok(Self {
             ident,
             generics,
             fields,
-            internal,
             default_sources,
             rename_all,
         })
@@ -260,7 +256,7 @@ fn metadata_source(salvo: &Ident, source: &SourceInfo) -> TokenStream {
 
 pub(crate) fn generate(args: DeriveInput) -> Result<TokenStream, Error> {
     let mut args: ExtractibleArgs = ExtractibleArgs::from_derive_input(&args)?;
-    let salvo = salvo_crate(args.internal);
+    let salvo = salvo_crate();
     let (impl_generics, ty_generics, where_clause) = args.generics.split_for_impl();
 
     let name = &args.ident;
@@ -331,7 +327,7 @@ pub(crate) fn generate(args: DeriveInput) -> Result<TokenStream, Error> {
         });
     }
 
-    let sv = format_ident!("__salvo_extract_{}", name);
+    let sv: Ident = format_ident!("__salvo_extract_{}", name);
     let mt = name.to_string();
     let imp_code = if args.generics.lifetimes().next().is_none() {
         let de_life_def = syn::parse_str("'de").unwrap();

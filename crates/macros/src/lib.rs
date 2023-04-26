@@ -35,27 +35,22 @@ mod shared;
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn handler(args: TokenStream, input: TokenStream) -> TokenStream {
-    let internal = !args.is_empty();
+pub fn handler(_args: TokenStream, input: TokenStream) -> TokenStream {
     let item = parse_macro_input!(input as Item);
-    let stream = match handler::generate(internal, item) {
+    match handler::generate(item) {
         Ok(stream) => stream.into(),
         Err(e) => e.to_compile_error().into(),
-    };
-    // println!("{}", stream);
-    stream
+    }
 }
 
 /// Generate code for extractible type.
 #[proc_macro_derive(Extractible, attributes(extract))]
 pub fn derive_extractible(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as DeriveInput);
-    let stream = match extract::generate(args) {
+    match extract::generate(args) {
         Ok(stream) => stream.into(),
         Err(e) => e.to_compile_error().into(),
-    };
-    // println!("{}", stream);
-    stream
+    }
 }
 
 #[cfg(test)]
@@ -75,7 +70,7 @@ mod tests {
         };
         let item = parse2(input).unwrap();
         assert_eq!(
-            handler::generate(false, item).unwrap().to_string(),
+            handler::generate(item).unwrap().to_string(),
             quote! {
                 #[allow(non_camel_case_types)]
                 #[derive(Debug)]
@@ -96,7 +91,7 @@ mod tests {
                         req: &mut salvo::Request,
                         depot: &mut salvo::Depot,
                         res: &mut salvo::Response,
-                        ctrl: &mut salvo::routing::FlowCtrl
+                        ctrl: &mut salvo::FlowCtrl
                     ) {
                         Self::hello(req, depot, res, ctrl).await
                     }
@@ -116,7 +111,7 @@ mod tests {
         };
         let item = parse2(input).unwrap();
         assert_eq!(
-            handler::generate(false, item).unwrap().to_string(),
+            handler::generate(item).unwrap().to_string(),
             quote! {
                 #[allow(non_camel_case_types)]
                 #[derive(Debug)]
@@ -142,7 +137,7 @@ mod tests {
                         req: &mut salvo::Request,
                         depot: &mut salvo::Depot,
                         res: &mut salvo::Response,
-                        ctrl: &mut salvo::routing::FlowCtrl
+                        ctrl: &mut salvo::FlowCtrl
                     ) {
                         salvo::Writer::write(Self::hello(req, depot, res, ctrl).await, req, depot, res).await;
                     }
@@ -164,7 +159,7 @@ mod tests {
         };
         let item = parse2(input).unwrap();
         assert_eq!(
-            handler::generate(false, item).unwrap().to_string(),
+            handler::generate(item).unwrap().to_string(),
             quote! {
                 #[handler]
                 impl Hello {
@@ -180,7 +175,7 @@ mod tests {
                         req: &mut salvo::Request,
                         depot: &mut salvo::Depot,
                         res: &mut salvo::Response,
-                        ctrl: &mut salvo::routing::FlowCtrl
+                        ctrl: &mut salvo::FlowCtrl
                     ) {
                         Self::handle(req, depot, res)
                     }

@@ -4,22 +4,77 @@
 //!
 //! [salvo]: <https://docs.rs/salvo/>
 //!
-use std::{borrow::Cow, error::Error};
+use std::borrow::Cow;
 
 mod config;
 pub mod oauth;
 use crate::OpenApi;
 pub use config::Config;
 use rust_embed::RustEmbed;
+use salvo_core::http::uri::{Parts as UriParts, Uri};
 use salvo_core::http::{header, HeaderValue, ResBody, StatusError};
-use salvo_core::{async_trait, Depot, FlowCtrl, Handler, Request, Response, Router};
+use salvo_core::writer::Redirect;
+use salvo_core::{async_trait, Depot, Error, FlowCtrl, Handler, Request, Response, Router};
 use serde::Serialize;
 
 #[derive(RustEmbed)]
-#[folder = "$SALVO_SWAGGER_DIR/$SALVO_SWAGGER_UI_VERSION/dist/"]
+#[folder = "src/swagger_ui/v4.18.2"]
 struct SwaggerUiDist;
 
-#[non_exhaustive]
+const INDEX_TMPL: &str = r#"
+<!DOCTYPE html>
+<html charset="UTF-8">
+  <head>
+    <meta charset="UTF-8">
+    <title>Swagger UI</title>
+    <link rel="stylesheet" type="text/css" href="./swagger-ui.css" />
+    <link rel="icon" type="image/png" href="./favicon-32x32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="./favicon-16x16.png" sizes="16x16" />
+    <style>
+    html {
+        box-sizing: border-box;
+        overflow: -moz-scrollbars-vertical;
+        overflow-y: scroll;
+    }
+    *,
+    *:before,
+    *:after {
+        box-sizing: inherit;
+    }
+    body {
+        margin: 0;
+        background: #fafafa;
+    }
+    </style>
+  </head>
+
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="./swagger-ui-bundle.js" charset="UTF-8"> </script>
+    <script src="./swagger-ui-standalone-preset.js" charset="UTF-8"> </script>
+    <script>
+    window.onload = function() {
+        let config = {
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            presets: [
+              SwaggerUIBundle.presets.apis,
+              SwaggerUIStandalonePreset
+            ],
+            plugins: [
+              SwaggerUIBundle.plugins.DownloadUrl
+            ],
+            layout: "StandaloneLayout"
+          };
+        window.ui = SwaggerUIBundle(Object.assign(config, {{config}}));
+        //{{oauth}}
+    };
+    </script>
+  </body>
+</html>
+"#;
+
+/// Implements [`Handler`] for serving Swagger UI.
 #[derive(Clone, Debug)]
 pub struct SwaggerUi {
     urls: Vec<(Url<'static>, OpenApi)>,
@@ -35,7 +90,7 @@ impl SwaggerUi {
     /// # Examples
     ///
     /// ```rust
-    /// # use salvo_oapi::swagger::SwaggerUi;
+    /// # use salvo_oapi::swagger_ui::SwaggerUi;
     /// let swagger = SwaggerUi::new("/swagger-ui/{_:.*}");
     /// ```
     pub fn new(config: impl Into<Config<'static>>) -> Self {
@@ -56,7 +111,7 @@ impl SwaggerUi {
     /// # Examples
     ///
     /// ```rust
-    /// # use salvo_oapi::swagger::SwaggerUi;
+    /// # use salvo_oapi::swagger_ui::SwaggerUi;
     /// # use salvo_oapi::{Info, OpenApi};
     ///
     /// let swagger = SwaggerUi::new("/api-doc/openapi.json")
@@ -79,7 +134,7 @@ impl SwaggerUi {
     ///
     /// Expose multiple api docs via Swagger UI.
     /// ```rust
-    /// # use salvo_oapi::swagger::{SwaggerUi, Url};
+    /// # use salvo_oapi::swagger_ui::{SwaggerUi, Url};
     /// # use salvo_oapi::{Info, OpenApi};
     ///
     /// let swagger = SwaggerUi::new("/swagger-ui/{_:.*}")
@@ -109,7 +164,7 @@ impl SwaggerUi {
     ///
     /// Add external API doc to the [`SwaggerUi`].
     ///```rust
-    /// # use salvo_oapi::swagger::{SwaggerUi, Url};
+    /// # use salvo_oapi::swagger_ui::{SwaggerUi, Url};
     /// # use salvo_oapi::OpenApi;
     /// # use serde_json::json;
     /// let external_openapi = json!({"openapi": "3.0.0"});
@@ -137,7 +192,7 @@ impl SwaggerUi {
     ///
     /// Add external API docs to the [`SwaggerUi`].
     ///```rust
-    /// # use salvo_oapi::swagger::{SwaggerUi, Url};
+    /// # use salvo_oapi::swagger_ui::{SwaggerUi, Url};
     /// # use salvo_oapi::OpenApi;
     /// # use serde_json::json;
     /// let external_openapi = json!({"openapi": "3.0.0"});
@@ -167,7 +222,7 @@ impl SwaggerUi {
     ///
     /// Enable pkce with default client_id.
     /// ```rust
-    /// # use salvo_oapi::swagger::{SwaggerUi, oauth};
+    /// # use salvo_oapi::swagger_ui::{SwaggerUi, oauth};
     /// # use salvo_oapi::{Info, OpenApi};
     ///
     /// let swagger = SwaggerUi::new("/swagger-ui/{_:.*}")
@@ -183,15 +238,47 @@ impl SwaggerUi {
         self
     }
 
+    /// Consusmes the [`SwaggerUi`] and returns [`Router`] with the [`SwaggerUi`] as handler.
     pub fn into_router(self, path: impl Into<String>) -> Router {
         Router::with_path(format!("{}/<**>", path.into())).handle(self)
     }
+}
+
+#[inline]
+pub(crate) fn redirect_to_dir_url(req_uri: &Uri, res: &mut Response) {
+    let UriParts {
+        scheme,
+        authority,
+        path_and_query,
+        ..
+    } = req_uri.clone().into_parts();
+    let mut builder = Uri::builder();
+    if let Some(scheme) = scheme {
+        builder = builder.scheme(scheme);
+    }
+    if let Some(authority) = authority {
+        builder = builder.authority(authority);
+    }
+    if let Some(path_and_query) = path_and_query {
+        if let Some(query) = path_and_query.query() {
+            builder = builder.path_and_query(format!("{}/?{}", path_and_query.path(), query));
+        } else {
+            builder = builder.path_and_query(format!("{}/", path_and_query.path()));
+        }
+    }
+    let redirect_uri = builder.build().unwrap();
+    res.render(Redirect::found(redirect_uri));
 }
 
 #[async_trait]
 impl Handler for SwaggerUi {
     async fn handle(&self, req: &mut Request, _depot: &mut Depot, res: &mut Response, _ctrl: &mut FlowCtrl) {
         let path = req.params().get("**").map(|s| &**s).unwrap_or_default();
+        // Redirect to dir url if path is empty and not end with '/'
+        if path.is_empty() && !req.uri().path().ends_with('/') {
+            redirect_to_dir_url(req.uri(), res);
+            return;
+        }
         match serve(path, &self.config) {
             Ok(Some(file)) => {
                 res.headers_mut()
@@ -199,10 +286,11 @@ impl Handler for SwaggerUi {
                 res.set_body(ResBody::Once(file.bytes.to_vec().into()));
             }
             Ok(None) => {
+                tracing::warn!(path = path, "swagger ui file not found");
                 res.set_status_error(StatusError::not_found());
             }
             Err(e) => {
-                tracing::error!(error = ?e, path =  "failed to fetch swagger ui file");
+                tracing::error!(error = ?e, path = path, "failed to fetch swagger ui file");
                 res.set_status_error(StatusError::internal_server_error());
             }
         }
@@ -229,7 +317,7 @@ impl<'a> Url<'a> {
     /// # Examples
     ///
     /// ```rust
-    /// # use salvo_oapi::swagger::Url;
+    /// # use salvo_oapi::swagger_ui::Url;
     /// let url = Url::new("My Api", "/api-docs/openapi.json");
     /// ```
     pub fn new(name: &'a str, url: &'a str) -> Self {
@@ -254,7 +342,7 @@ impl<'a> Url<'a> {
     ///
     /// Set "My Api" as primary.
     /// ```rust
-    /// # use salvo_oapi::swagger::Url;
+    /// # use salvo_oapi::swagger_ui::Url;
     /// let url = Url::with_primary("My Api", "/api-docs/openapi.json", true);
     /// ```
     pub fn with_primary(name: &'a str, url: &'a str, primary: bool) -> Self {
@@ -317,49 +405,31 @@ pub struct SwaggerFile<'a> {
 /// _There are also implementations in [examples of salvo repository][examples]._
 ///
 /// [examples]: https://github.com/juhaku/salvo/tree/master/examples
-pub fn serve<'a>(path: &str, config: &Config<'a>) -> Result<Option<SwaggerFile<'a>>, Box<dyn Error>> {
+pub fn serve<'a>(path: &str, config: &Config<'a>) -> Result<Option<SwaggerFile<'a>>, Error> {
     let path = if path.is_empty() || path == "/" {
         "index.html"
     } else {
         path
     };
 
-    if let Some(file) = SwaggerUiDist::get(path) {
-        let mut bytes = file.data;
+    let bytes = if path == "index.html" {
+        let config_json = serde_json::to_string(&config)?;
 
-        if path == "swagger-initializer.js" {
-            let mut file = match String::from_utf8(bytes.to_vec()) {
-                Ok(file) => file,
-                Err(error) => return Err(Box::new(error)),
-            };
+        // Replace {{config}} with pretty config json and remove the curly brackets `{ }` from beginning and the end.
+        let mut index = INDEX_TMPL.replace("{{config}}", &config_json);
 
-            file = format_config(config, file)?;
-
-            if let Some(oauth) = &config.oauth {
-                match oauth::format_swagger_config(oauth, file) {
-                    Ok(oauth_file) => file = oauth_file,
-                    Err(error) => return Err(Box::new(error)),
-                }
-            }
-
-            bytes = Cow::Owned(file.as_bytes().to_vec())
-        };
-
-        Ok(Some(SwaggerFile {
-            bytes,
-            content_type: mime_guess::from_path(path).first_or_octet_stream().to_string(),
-        }))
+        if let Some(oauth) = &config.oauth {
+            let oauth_json = serde_json::to_string(oauth)?;
+            index = index.replace("//{{oauth}}", &format!("window.ui.initOAuth({});", &oauth_json));
+        }
+        Some(Cow::Owned(index.as_bytes().to_vec()))
     } else {
-        Ok(None)
-    }
-}
-#[inline]
-fn format_config(config: &Config, file: String) -> Result<String, Box<dyn Error>> {
-    let config_json = match serde_json::to_string_pretty(&config) {
-        Ok(config) => config,
-        Err(error) => return Err(Box::new(error)),
+        SwaggerUiDist::get(path).map(|f|f.data)
     };
+    let file = bytes.map(|bytes| SwaggerFile {
+        bytes,
+        content_type: mime_guess::from_path(path).first_or_octet_stream().to_string(),
+    });
 
-    // Replace {{config}} with pretty config json and remove the curly brackets `{ }` from beginning and the end.
-    Ok(file.replace("{{config}}", &config_json[2..&config_json.len() - 2]))
+    Ok(file)
 }

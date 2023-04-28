@@ -10,9 +10,9 @@ use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{Attribute, Data, Field, Fields, Generics, LitStr, Path, Type, TypePath, Variant};
 
-use crate::component::schema::{EnumSchema, NamedStructSchema};
 use crate::doc_comment::CommentAttributes;
 use crate::operation::{InlineType, PathType};
+use crate::schema::{EnumSchema, NamedStructSchema};
 use crate::{Array, ResultExt};
 
 use super::{
@@ -20,14 +20,14 @@ use super::{
     ResponseTuple, ResponseTupleInner, ResponseValue,
 };
 
-pub struct AsResponse<'r> {
+pub(crate) struct AsResponse<'r> {
     ident: Ident,
     generics: Generics,
     response: ResponseTuple<'r>,
 }
 
 impl<'r> AsResponse<'r> {
-    pub fn new(attributes: Vec<Attribute>, data: &'r Data, generics: Generics, ident: Ident) -> AsResponse<'r> {
+    pub(crate) fn new(attributes: Vec<Attribute>, data: &'r Data, generics: Generics, ident: Ident) -> AsResponse<'r> {
         let response = match &data {
             Data::Struct(struct_value) => match &struct_value.fields {
                 Fields::Named(fields) => AsResponseNamedStructResponse::new(&attributes, &ident, &fields.named).0,
@@ -62,19 +62,19 @@ impl ToTokens for AsResponse<'_> {
 
         tokens.extend(quote! {
             impl #as_response_impl_generics #oapi::oapi::AsResponse for #ident #ty_generics #where_clause {
-                fn response() -> (&'static str, #oapi::oapi::RefOr<#oapi::oapi::response::Response>) {
-                    (#name, #response.into())
+                fn response() -> (String, #oapi::oapi::RefOr<#oapi::oapi::response::Response>) {
+                    (#name.into(), #response.into())
                 }
             }
         });
     }
 }
 
-pub struct AsResponses {
-    pub attributes: Vec<Attribute>,
-    pub data: Data,
-    pub generics: Generics,
-    pub ident: Ident,
+pub(crate) struct AsResponses {
+    pub(crate) attributes: Vec<Attribute>,
+    pub(crate) data: Data,
+    pub(crate) generics: Generics,
+    pub(crate) ident: Ident,
 }
 
 impl ToTokens for AsResponses {
@@ -156,7 +156,7 @@ trait Response {
 
         let ident = attribute.path().get_ident().unwrap();
         match &*ident.to_string() {
-            "as_schema" => (false, ERROR),
+            "symbol" => (false, ERROR),
             "ref_response" => (false, ERROR),
             "content" => (false, ERROR),
             "as_response" => (false, ERROR),
@@ -261,12 +261,11 @@ impl NamedStructResponse<'_> {
         let inline_schema = NamedStructSchema {
             attributes,
             fields,
-            aliases: None,
             features: None,
             generics: None,
             rename_all: None,
             struct_name: Cow::Owned(ident.to_string()),
-            schema_as: None,
+            symbol: None,
         };
 
         let ty = Self::to_type(ident);
@@ -322,14 +321,13 @@ impl<'p> AsResponseNamedStructResponse<'p> {
         let ty = Self::to_type(ident);
 
         let inline_schema = NamedStructSchema {
-            aliases: None,
             fields,
             features: None,
             generics: None,
             attributes,
             struct_name: Cow::Owned(ident.to_string()),
             rename_all: None,
-            schema_as: None,
+            symbol: None,
         };
         let response_type = PathType::InlineSchema(inline_schema.to_token_stream(), ty);
 

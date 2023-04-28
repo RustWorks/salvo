@@ -21,19 +21,21 @@ impl TryFrom<&Field> for FieldInfo {
     fn try_from(field: &Field) -> Result<Self, Self::Error> {
         let ident = field.ident.clone();
         let attrs = field.attrs.clone();
-        let mut sources = Vec::with_capacity(field.attrs.len());
+        let mut sources: Vec<SourceInfo> = Vec::with_capacity(field.attrs.len());
         let mut aliases = Vec::with_capacity(field.attrs.len());
         let mut rename = None;
         for attr in attrs {
             if attr.path().is_ident("extract") {
-                let extract: ExtractFieldInfo = attr.parse_args()?;
-                sources.extend(extract.sources);
-                aliases.extend(extract.aliases);
-                if extract.rename.is_some() {
-                    rename = extract.rename;
+                let info: ExtractFieldInfo = attr.parse_args()?;
+                sources.extend(info.sources);
+                aliases.extend(info.aliases);
+                if info.rename.is_some() {
+                    rename = info.rename;
                 }
             }
         }
+        sources.dedup();
+        aliases.dedup();
         Ok(Self {
             ident,
             ty: field.ty.clone(),
@@ -88,10 +90,8 @@ impl Parse for ExtractFieldInfo {
                 extract.sources.push(item.parse::<SourceInfo>()?);
             } else if id == "rename" {
                 input.parse::<Token![=]>()?;
-                print!("rename: 1111");
                 let expr = input.parse::<Expr>()?;
                 extract.rename = Some(expr_lit_value(&expr)?);
-                print!("rename: {:?}", extract.rename);
             } else if id == "alias" {
                 input.parse::<Token![=]>()?;
                 let expr = input.parse::<Expr>()?;
@@ -104,7 +104,8 @@ impl Parse for ExtractFieldInfo {
         Ok(extract)
     }
 }
-#[derive(Debug)]
+
+#[derive(Eq, PartialEq, Debug)]
 struct SourceInfo {
     from: String,
     format: String,

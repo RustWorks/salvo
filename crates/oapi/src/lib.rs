@@ -1,4 +1,16 @@
-#![cfg_attr(doc_cfg, feature(doc_cfg))]
+//! OpenApi support for salvo.
+
+#![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
+#![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(private_in_public, unreachable_pub)]
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
+#![warn(clippy::future_not_send)]
+#![warn(rustdoc::broken_intra_doc_links)]
+
+#[macro_use]
+mod cfg;
 
 mod openapi;
 pub use openapi::*;
@@ -6,7 +18,11 @@ mod endpoint;
 pub use endpoint::{Endpoint, EndpointModifier, EndpointRegistry};
 pub mod extract;
 mod router;
-pub mod swagger;
+
+cfg_feature! {
+    #![feature ="swagger-ui"]
+    pub mod swagger_ui;
+}
 
 use salvo_core::Extractible;
 pub use salvo_oapi_macros::*;
@@ -48,57 +64,51 @@ extern crate self as salvo_oapi;
 /// # }
 /// #
 /// impl AsSchema for Pet {
-///     fn schema() -> (Option<&'static str>, RefOr<Schema>) {
-///          (
-///             Some("Pet"),
-///             Object::new()
-///                 .property(
-///                     "id",
-///                     Object::new()
-///                         .schema_type(SchemaType::Integer)
-///                         .format(SchemaFormat::KnownFormat(
-///                             KnownFormat::Int64,
-///                         )),
-///                 )
-///                 .required("id")
-///                 .property(
-///                     "name",
-///                     Object::new()
-///                         .schema_type(SchemaType::String),
-///                 )
-///                 .required("name")
-///                 .property(
-///                     "age",
-///                     Object::new()
-///                         .schema_type(SchemaType::Integer)
-///                         .format(SchemaFormat::KnownFormat(
-///                             KnownFormat::Int32,
-///                         )),
-///                 )
-///                 .example(serde_json::json!({
-///                   "name":"bob the cat","id":1
-///                 }))
-///                 .into(),
-///         ) }
+///     fn schema() -> RefOr<Schema> {
+///         Object::new()
+///             .property(
+///                 "id",
+///                 Object::new()
+///                     .schema_type(SchemaType::Integer)
+///                     .format(SchemaFormat::KnownFormat(
+///                         KnownFormat::Int64,
+///                     )),
+///             )
+///             .required("id")
+///             .property(
+///                 "name",
+///                 Object::new()
+///                     .schema_type(SchemaType::String),
+///             )
+///             .required("name")
+///             .property(
+///                 "age",
+///                 Object::new()
+///                     .schema_type(SchemaType::Integer)
+///                     .format(SchemaFormat::KnownFormat(
+///                         KnownFormat::Int32,
+///                     )),
+///             )
+///             .example(serde_json::json!({
+///               "name":"bob the cat","id":1
+///             }))
+///             .into()
+///     }
 /// }
 /// ```
 pub trait AsSchema {
-    /// Return a tuple of name and schema or reference to a schema that can be referenced by the
-    /// name or inlined directly to responses, request bodies or parameters.
-    fn schema() -> (Option<&'static str>, RefOr<schema::Schema>);
-
-    /// Optional set of alias schemas for the [`AsSchema::schema`].
-    ///
-    /// Typically there is no need to manually implement this method but it is instead implemented
-    /// by derive [`macro@AsSchema`] when `#[aliases(...)]` attribute is defined.
-    fn aliases() -> Vec<(&'static str, schema::Schema)> {
-        Vec::new()
+    /// Returns a name of the schema.
+    fn symbol() -> Option<String> {
+        None
     }
+    /// Returns a tuple of name and schema or reference to a schema that can be referenced by the
+    /// name or inlined directly to responses, request bodies or parameters.
+    fn schema() -> RefOr<schema::Schema>;
 }
 
 impl<T: AsSchema> From<T> for RefOr<schema::Schema> {
     fn from(_: T) -> Self {
-        T::schema().1
+        T::schema()
     }
 }
 
@@ -108,30 +118,33 @@ impl<T: AsSchema> From<T> for RefOr<schema::Schema> {
 pub type TupleUnit = ();
 
 impl AsSchema for TupleUnit {
-    fn schema() -> (Option<&'static str>, RefOr<schema::Schema>) {
-        (Some("TupleUnit"), schema::empty().into())
+    fn symbol() -> Option<String> {
+        Some("TupleUnit".into())
+    }
+    fn schema() -> RefOr<schema::Schema> {
+        schema::empty().into()
     }
 }
 
-macro_rules! impl_partial_schema {
+macro_rules! impl_as_schema {
     ( $ty:path ) => {
-        impl_partial_schema!( @impl_schema $ty );
+        impl_as_schema!( @impl_schema $ty );
     };
     ( & $ty:path ) => {
-        impl_partial_schema!( @impl_schema &$ty );
+        impl_as_schema!( @impl_schema &$ty );
     };
     ( @impl_schema $( $tt:tt )* ) => {
         impl AsSchema for $($tt)* {
-            fn schema() -> (Option<&'static str>, crate::RefOr<crate::schema::Schema>) {
-                (None, schema!( $($tt)* ).into())
+            fn schema() -> crate::RefOr<crate::schema::Schema> {
+                schema!( $($tt)* ).into()
             }
         }
     };
 }
 
-macro_rules! impl_partial_schema_primitive {
+macro_rules! impl_as_schema_primitive {
     ( $( $tt:path  ),* ) => {
-        $( impl_partial_schema!( $tt ); )*
+        $( impl_as_schema!( $tt ); )*
     };
 }
 
@@ -149,59 +162,52 @@ pub mod __private {
 }
 
 #[rustfmt::skip]
-impl_partial_schema_primitive!(
+impl_as_schema_primitive!(
     i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, bool, f32, f64, String, str, char
 );
-
-impl_partial_schema!(&str);
+impl_as_schema!(&str);
 
 impl<T: AsSchema> AsSchema for Vec<T> {
-    fn schema() -> (Option<&'static str>, RefOr<schema::Schema>) {
-        (None, schema!(#[inline] Vec<T>).into())
+    fn schema() -> RefOr<schema::Schema> {
+        schema!(#[inline] Vec<T>).into()
     }
 }
 
 impl<T: AsSchema> AsSchema for [T] {
-    fn schema() -> (Option<&'static str>, RefOr<schema::Schema>) {
-        (
-            None,
-            schema!(
-                #[inline]
-                [T]
-            )
-            .into(),
+    fn schema() -> RefOr<schema::Schema> {
+        schema!(
+            #[inline]
+            [T]
         )
+        .into()
     }
 }
 
 impl<T: AsSchema> AsSchema for &[T] {
-    fn schema() -> (Option<&'static str>, RefOr<schema::Schema>) {
-        (
-            None,
-            schema!(
-                #[inline]
-                &[T]
-            )
-            .into(),
+    fn schema() -> RefOr<schema::Schema> {
+        schema!(
+            #[inline]
+            &[T]
         )
+        .into()
     }
 }
 
 impl<T: AsSchema> AsSchema for Option<T> {
-    fn schema() -> (Option<&'static str>, RefOr<schema::Schema>) {
-        (None, schema!(#[inline] Option<T>).into())
+    fn schema() -> RefOr<schema::Schema> {
+        schema!(#[inline] Option<T>).into()
     }
 }
 
 impl<K: AsSchema, V: AsSchema> AsSchema for BTreeMap<K, V> {
-    fn schema() -> (Option<&'static str>, RefOr<schema::Schema>) {
-        (None, schema!(#[inline]BTreeMap<K, V>).into())
+    fn schema() -> RefOr<schema::Schema> {
+        schema!(#[inline]BTreeMap<K, V>).into()
     }
 }
 
 impl<K: AsSchema, V: AsSchema> AsSchema for HashMap<K, V> {
-    fn schema() -> (Option<&'static str>, RefOr<schema::Schema>) {
-        (None, schema!(#[inline]HashMap<K, V>).into())
+    fn schema() -> RefOr<schema::Schema> {
+        schema!(#[inline]HashMap<K, V>).into()
     }
 }
 
@@ -294,8 +300,12 @@ pub trait AsParameters<'de>: Extractible<'de> + EndpointModifier {
     /// provide OpenAPI parameter information for the endpoint using the parameters.
     fn parameters() -> Parameters;
 }
+
+/// Trait used to give [`Parameter`] information for OpenAPI.
 pub trait AsParameter: EndpointModifier {
+    /// Returns a `Parameter`.
     fn parameter() -> Parameter;
+    /// Returns a `Parameter`, this is used internal.
     fn parameter_with_arg(_arg: &str) -> Parameter {
         Self::parameter()
     }
@@ -319,7 +329,7 @@ pub trait AsParameter: EndpointModifier {
 /// impl AsRequestBody for MyPayload {
 ///     fn request_body() -> RequestBody {
 ///         RequestBody::new()
-///             .add_content("application/json", Content::new(MyPayload::schema().1))
+///             .add_content("application/json", Content::new(MyPayload::schema()))
 ///     }
 /// }
 /// impl EndpointModifier for MyPayload {
@@ -372,9 +382,9 @@ pub trait AsResponses {
 ///
 /// struct MyResponse;
 /// impl AsResponse for MyResponse {
-///     fn response() -> (&'static str, RefOr<Response>) {
+///     fn response() -> (String, RefOr<Response>) {
 ///         (
-///             "MyResponse",
+///             "MyResponse".into(),
 ///             Response::new("My Response").into(),
 ///         )
 ///     }
@@ -384,7 +394,7 @@ pub trait AsResponses {
 /// [derive]: derive.AsResponse.html
 pub trait AsResponse {
     /// Returns a tuple of response component name (to be referenced) to a response.
-    fn response() -> (&'static str, RefOr<crate::Response>);
+    fn response() -> (String, RefOr<crate::Response>);
 }
 
 #[cfg(test)]
@@ -432,8 +442,8 @@ mod tests {
             ("f32", f32::schema(), json!({"type": "number", "format": "float"})),
             ("f64", f64::schema(), json!({"type": "number", "format": "double"})),
         ] {
-            println!("{name}: {json}", json = serde_json::to_string(&schema.1).unwrap());
-            let schema = serde_json::to_value(schema.1).unwrap();
+            println!("{name}: {json}", json = serde_json::to_string(&schema).unwrap());
+            let schema = serde_json::to_value(schema).unwrap();
             assert_json_eq!(schema, value);
         }
     }

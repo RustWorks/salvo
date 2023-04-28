@@ -12,13 +12,15 @@ use syn::{
 };
 
 use crate::{
-    component::{features::Inline, ComponentSchema, TypeTree},
-    parse_utils, AnyValue, Array, ResultExt,
+    component::ComponentSchema,
+    feature::Inline,
+    operation::{example::Example, status::STATUS_CODES, InlineType, PathType, PathTypeTree},
+    parse_utils,
+    type_tree::TypeTree,
+    AnyValue, Array, ResultExt,
 };
 
-use super::{example::Example, status::STATUS_CODES, InlineType, PathType, PathTypeTree};
-
-pub mod derive;
+pub(crate) mod derive;
 
 #[derive(Debug)]
 pub(crate) enum Response<'r> {
@@ -43,8 +45,8 @@ impl Parse for Response<'_> {
 /// Parsed representation of response attributes from `#[salvo_oapi::endpoint]` attribute.
 #[derive(Default, Debug)]
 pub(crate) struct ResponseTuple<'r> {
-    pub status_code: ResponseStatus,
-    pub inner: Option<ResponseTupleInner<'r>>,
+    pub(crate) status_code: ResponseStatus,
+    pub(crate) inner: Option<ResponseTupleInner<'r>>,
 }
 
 const RESPONSE_INCOMPATIBLE_ATTRIBUTES_MSG: &str =
@@ -156,7 +158,7 @@ impl<'r> From<(ResponseStatus, ResponseValue<'r>)> for ResponseTuple<'r> {
     }
 }
 
-pub struct DeriveResponsesAttributes<T> {
+pub(crate) struct DeriveResponsesAttributes<T> {
     derive_value: T,
     description: String,
 }
@@ -186,7 +188,7 @@ impl<'r> From<DeriveResponsesAttributes<Option<DeriveAsResponseValue>>> for Resp
 }
 
 #[derive(Default, Debug)]
-pub struct ResponseValue<'r> {
+pub(crate) struct ResponseValue<'r> {
     pub(crate) description: String,
     pub(crate) response_type: Option<PathType<'r>>,
     pub(crate) content_type: Option<Vec<String>>,
@@ -260,8 +262,8 @@ impl ToTokens for ResponseTuple<'_> {
                                       examples: &Option<Punctuated<Example, Comma>>|
                  -> TokenStream2 {
                     let content_schema = match path_type {
-                        PathType::Ref(ref_type) => quote! {
-                            #oapi::oapi::schema::Ref::new(#ref_type)
+                        PathType::RefPath(ref_type) => quote! {
+                            #oapi::oapi::schema::Ref::new(<#ref_type as #oapi::oapi::AsSchema>::symbol().unwrap())
                         }
                         .to_token_stream(),
                         PathType::MediaType(ref path_type) => {
@@ -314,7 +316,7 @@ impl ToTokens for ResponseTuple<'_> {
                         })
                     } else {
                         match response_type {
-                            PathType::Ref(_) => {
+                            PathType::RefPath(_) => {
                                 tokens.extend(quote! {
                                     .add_content("application/json", #content)
                                 });
@@ -534,7 +536,7 @@ impl Parse for DeriveAsResponsesValue {
 }
 
 #[derive(Default, Debug)]
-pub struct ResponseStatus(TokenStream2);
+pub(crate) struct ResponseStatus(TokenStream2);
 
 impl Parse for ResponseStatus {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -658,7 +660,7 @@ impl Parse for Content<'_> {
     }
 }
 
-pub struct Responses<'a>(pub(crate) &'a [Response<'a>]);
+pub(crate) struct Responses<'a>(pub(crate) &'a [Response<'a>]);
 
 impl ToTokens for Responses<'_> {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {

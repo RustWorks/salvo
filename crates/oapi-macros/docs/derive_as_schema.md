@@ -37,8 +37,8 @@ struct Pet {
 * `rename_all = ...` Supports same syntax as _serde_ _`rename_all`_ attribute. Will rename all fields
   of the structs accordingly. If both _serde_ `rename_all` and _schema_ _`rename_all`_ are defined
   __serde__ will take precedence.
-* `as = ...` Can be used to define alternative path and name for the schema what will be used in
-  the OpenAPI. E.g _`as = path::to::Pet`_. This would make the schema appear in the generated
+* `symbol = ...` Can be used to define alternative path and name for the schema what will be used in
+  the OpenAPI. E.g _`symbol = "path::to::Pet"`_. This would make the schema appear in the generated
   OpenAPI spec as _`path.to.Pet`_.
 * `default` Can be used to populate default values on all fields using the struct's
   [`Default`](std::default::Default) implementation.
@@ -52,8 +52,8 @@ struct Pet {
 * `rename_all = ...` Supports same syntax as _serde_ _`rename_all`_ attribute. Will rename all
   variants of the enum accordingly. If both _serde_ `rename_all` and _schema_ _`rename_all`_
   are defined __serde__ will take precedence.
-* `as = ...` Can be used to define alternative path and name for the schema what will be used in
-  the OpenAPI. E.g _`as = path::to::Pet`_. This would make the schema appear in the generated
+* `symbol = ...` Can be used to define alternative path and name for the schema what will be used in
+  the OpenAPI. E.g _`symbol = "path::to::Pet"`_. This would make the schema appear in the generated
   OpenAPI spec as _`path.to.Pet`_.
 
 # Enum Variant Optional Configuration Options for `#[schema(...)]`
@@ -80,8 +80,8 @@ _`rename`_ and _schema_ _`rename`_ are defined __serde__ will take precedence.
 * `title = ...` Literal string value. Can be used to define title for struct in OpenAPI
   document. Some OpenAPI code generation libraries also use this field as a name for the
   struct.
-* `as = ...` Can be used to define alternative path and name for the schema what will be used in
-  the OpenAPI. E.g _`as = path::to::Pet`_. This would make the schema appear in the generated
+* `symbol = ...` Can be used to define alternative path and name for the schema what will be used in
+  the OpenAPI. E.g _`symbol = "path::to::Pet"`_. This would make the schema appear in the generated
   OpenAPI spec as _`path.to.Pet`_.
 
 # Named Fields Optional Configuration Options for `#[schema(...)]`
@@ -245,8 +245,8 @@ their numeric value.
 * `title = ...` Literal string value. Can be used to define title for enum in OpenAPI
   document. Some OpenAPI code generation libraries also use this field as a name for the
   enum. __Note!__  ___Complex enum (enum with other than unit variants) does not support title!___
-* `as = ...` Can be used to define alternative path and name for the schema what will be used in
-  the OpenAPI. E.g _`as = path::to::Pet`_. This would make the schema appear in the generated
+* `symbol = ...` Can be used to define alternative path and name for the schema what will be used in
+  the OpenAPI. E.g _`symbol = "path::to::Pet"`_. This would make the schema appear in the generated
   OpenAPI spec as _`path.to.Pet`_.
 
 _**Create enum with numeric values.**_
@@ -278,30 +278,6 @@ enum ExitCode {
     Ok = 1,
  }
 ```
-
-# Generic schemas with aliases
-
-Schemas can also be generic which allows reusing types. This enables certain behaviour patters
-where super type declares common code for type aliases.
-
-In this example we have common `Status` type which accepts one generic type. It is then defined
-with `#[aliases(...)]` that it is going to be used with [`String`](std::string::String) and [`i32`] values.
-The generic argument could also be another [`AsSchema`][as_schema] as well.
-```
-# use salvo_oapi::{AsSchema, OpenApi};
-#[derive(AsSchema)]
-#[aliases(StatusMessage = Status<String>, StatusNumber = Status<i32>)]
-struct Status<T> {
-    value: T
-}
-
-```
-
-The `#[aliases(...)]` is just syntactic sugar and will create Rust [type aliases](https://doc.rust-lang.org/reference/items/type-aliases.html)
-behind the scenes which then can be later referenced anywhere in code.
-
-**Note!** You should never register generic type itself in `components(...)` so according above example `Status<...>` should not be registered
-because it will not render the type correctly and will cause an error in generated OpenAPI spec.
 
 # Examples
 
@@ -438,21 +414,6 @@ _**Enforce type being used in OpenAPI spec to [`String`] with `value_type` optio
 struct Value(i64);
 ```
 
-_**Override the `Bar` reference with a `custom::NewBar` reference.**_
-```
-# use salvo_oapi::AsSchema;
-#  mod custom {
-#      struct NewBar;
-#  }
-#
-# struct Bar;
-#[derive(AsSchema)]
-struct Value {
-    #[schema(value_type = custom::NewBar)]
-    field: Bar,
-};
-```
-
 _**Use a virtual `Object` type to render generic `object` _(`type: object`)_ in OpenAPI spec.**_
 ```
 # use salvo_oapi::AsSchema;
@@ -531,7 +492,7 @@ _**Use `as` attribute to change the name and the path of the schema in the gener
 spec.**_
 ```
  #[derive(salvo_oapi::AsSchema)]
- #[schema(as = api::models::person::Person)]
+ #[schema(symbol = "api::models::person::Person")]
  struct Person {
      name: String,
  }

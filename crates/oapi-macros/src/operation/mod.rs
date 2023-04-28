@@ -3,29 +3,22 @@ use std::ops::Deref;
 
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{quote, quote_spanned, ToTokens};
-use syn::spanned::Spanned;
-use syn::token::Paren;
-use syn::{parenthesized, parse::Parse, Token};
-use syn::{Expr, ExprPath, Path, Type};
+use syn::{parenthesized, parse::Parse, spanned::Spanned, token::Paren, Expr, ExprPath, Path, Token, Type};
 
-use crate::component::{GenericType, TypeTree};
 use crate::endpoint::EndpointAttr;
 use crate::schema_type::SchemaType;
 use crate::security_requirement::SecurityRequirementAttr;
+use crate::type_tree::{GenericType, TypeTree};
 use crate::Array;
 
 pub(crate) mod example;
-pub(crate) mod parameter;
 pub(crate) mod request_body;
-pub(crate) mod response;
-pub(crate) use self::{
-    parameter::{Parameter, ParameterIn},
-    request_body::RequestBodyAttr,
-    response::{Response, ResponseTupleInner},
-};
-mod status;
+pub(crate) use self::request_body::RequestBodyAttr;
+use crate::parameter::Parameter;
+use crate::response::{Response, ResponseTupleInner};
+pub(crate) mod status;
 
-pub struct Operation<'a> {
+pub(crate) struct Operation<'a> {
     operation_id: Option<&'a Expr>,
     summary: Option<&'a String>,
     description: Option<&'a Vec<String>>,
@@ -61,7 +54,7 @@ impl<'a> Operation<'a> {
             match response {
                 Response::AsResponses(path) => {
                     modifiers.push(quote! {
-                        components.responses.append(&mut <#path as #oapi::oapi::AsResponses>::responses());
+                        operation.responses.append(&mut <#path as #oapi::oapi::AsResponses>::responses());
                     });
                 }
                 Response::Tuple(tuple) => {
@@ -72,9 +65,8 @@ impl<'a> Operation<'a> {
                                 let ty = &inline.ty;
                                 modifiers.push(quote! {
                                     {
-                                        let (path, schema) = <#ty as #oapi::oapi::AsSchema>::schema();
-                                        if let Some(path) = path {
-                                            components.schemas.insert(path.into(), schema);
+                                        if let Some(symbol) = <#ty as #oapi::oapi::AsSchema>::symbol() {
+                                            components.schemas.insert(symbol.into(), <#ty as #oapi::oapi::AsSchema>::schema());
                                         }
                                     }
                                 });
@@ -99,12 +91,11 @@ impl<'a> Operation<'a> {
 fn generate_register_schemas(oapi: &Ident, content: &PathType) -> Vec<TokenStream2> {
     let mut modifiers = vec![];
     match content {
-        PathType::Ref(path) => {
+        PathType::RefPath(path) => {
             modifiers.push(quote! {
                 {
-                    let (path, schema) = <#path as #oapi::oapi::AsSchema>::schema();
-                    if let Some(path) = path {
-                        components.schemas.insert(path.into(), schema);
+                    if let Some(symbol) = <#path as #oapi::oapi::AsSchema>::symbol() {
+                        components.schemas.insert(symbol.into(), <#path as #oapi::oapi::AsSchema>::schema());
                     }
                 }
             });
@@ -113,9 +104,8 @@ fn generate_register_schemas(oapi: &Ident, content: &PathType) -> Vec<TokenStrea
             let ty = &inline.ty;
             modifiers.push(quote! {
                 {
-                    let (path, schema) = <#ty as #oapi::oapi::AsSchema>::schema();
-                    if let Some(path) = path {
-                        components.schemas.insert(path.into(), schema);
+                    if let Some(symbol) = <#ty as #oapi::oapi::AsSchema>::symbol() {
+                        components.schemas.insert(symbol.into(), <#ty as #oapi::oapi::AsSchema>::schema());
                     }
                 }
             });
@@ -177,7 +167,7 @@ impl ToTokens for Operation<'_> {
 /// Represents either `ref("...")` or `Type` that can be optionally inlined with `inline(Type)`.
 #[derive(Debug)]
 pub(crate) enum PathType<'p> {
-    Ref(Path),
+    RefPath(Path),
     MediaType(InlineType<'p>),
     InlineSchema(TokenStream2, Type),
 }
@@ -195,7 +185,7 @@ impl Parse for PathType<'_> {
             input.parse::<Token![ref]>()?;
             let ref_stream;
             parenthesized!(ref_stream in input);
-            Ok(Self::Ref(ref_stream.parse::<ExprPath>()?.path))
+            Ok(Self::RefPath(ref_stream.parse::<ExprPath>()?.path))
         } else {
             Ok(Self::MediaType(input.parse()?))
         }
@@ -211,7 +201,7 @@ pub(crate) struct InlineType<'i> {
 
 impl InlineType<'_> {
     /// Get's the underlying [`syn::Type`] as [`TypeTree`].
-    fn as_type_tree(&self) -> TypeTree {
+    pub(crate) fn as_type_tree(&self) -> TypeTree {
         TypeTree::from_type(&self.ty)
     }
 }
@@ -242,7 +232,7 @@ impl Parse for InlineType<'_> {
     }
 }
 
-pub trait PathTypeTree {
+pub(crate) trait PathTypeTree {
     /// Resolve default content type based on current [`Type`].
     fn get_default_content_type(&self) -> &str;
 

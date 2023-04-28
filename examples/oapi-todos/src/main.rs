@@ -1,13 +1,10 @@
 use once_cell::sync::Lazy;
-
+use salvo::oapi::extract::*;
+use salvo::oapi::swagger_ui::SwaggerUi;
+use salvo::oapi::{Info, OpenApi};
 use salvo::prelude::*;
-use salvo::size_limiter;
 
 use self::models::*;
-
-use salvo::oapi::extract::*;
-use salvo::oapi::swagger::SwaggerUi;
-use salvo::oapi::{Info, OpenApi};
 
 static STORE: Lazy<Db> = Lazy::new(new_store);
 
@@ -23,7 +20,6 @@ async fn main() {
     let router = Router::new().get(hello).push(
         Router::with_path("api").push(
             Router::with_path("todos")
-                .hoop(size_limiter::max_size(1024 * 16))
                 .get(list_todos)
                 .post(create_todo)
                 .push(Router::with_path("<id>").patch(update_todo).delete(delete_todo)),
@@ -58,7 +54,7 @@ pub async fn list_todos(req: &mut Request, res: &mut Response) {
 
 #[endpoint(
     responses(
-        (status = 201, description = "Todo created successfully", body = Todo),
+        (status = 201, description = "Todo created successfully", body = models::Todo),
         (status = 409, description = "Todo already exists", body = TodoError, example = json!(TodoError::Config(String::from("id = 1"))))
     )
 )]

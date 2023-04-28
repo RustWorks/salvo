@@ -4,14 +4,12 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-const END_MARKER: &str = "//</editor-fold>";
-
 /// Object used to alter Swagger UI oauth settings.
 ///
 /// # Examples
 ///
 /// ```
-/// # use salvo_oapi::swagger::oauth;
+/// # use salvo_oapi::swagger_ui::oauth;
 /// let config = oauth::Config::new()
 ///     .client_id("client-id")
 ///     .use_pkce_with_authorization_code_grant(true);
@@ -75,7 +73,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// let config = oauth::Config::new();
     /// ```
     pub fn new() -> Self {
@@ -89,7 +87,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// let config = oauth::Config::new()
     ///     .client_id("client-id");
     /// ```
@@ -108,7 +106,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// let config = oauth::Config::new()
     ///     .client_secret("client-secret");
     /// ```
@@ -126,7 +124,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// let config = oauth::Config::new()
     ///     .realm("realm");
     /// ```
@@ -144,7 +142,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// let config = oauth::Config::new()
     ///     .app_name("app-name");
     /// ```
@@ -162,7 +160,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// let config = oauth::Config::new()
     ///     .scope_separator(",");
     /// ```
@@ -180,7 +178,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// let config = oauth::Config::new()
     ///     .scopes(vec![String::from("openid")]);
     /// ```
@@ -198,7 +196,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// # use std::collections::HashMap;
     /// let config = oauth::Config::new()
     ///     .additional_query_string_params(HashMap::from([(String::from("a"), String::from("1"))]));
@@ -220,7 +218,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// let config = oauth::Config::new()
     ///     .use_basic_authentication_with_access_code_grant(true);
     /// ```
@@ -243,7 +241,7 @@ impl Config {
     /// # Examples
     ///
     /// ```
-    /// # use salvo_oapi::swagger::oauth;
+    /// # use salvo_oapi::swagger_ui::oauth;
     /// let config = oauth::Config::new()
     ///     .use_pkce_with_authorization_code_grant(true);
     /// ```
@@ -251,57 +249,5 @@ impl Config {
         self.use_pkce_with_authorization_code_grant = Some(use_pkce_with_authorization_code_grant);
 
         self
-    }
-}
-
-pub(crate) fn format_swagger_config(config: &Config, file: String) -> serde_json::Result<String> {
-    let init_string = format!(
-        "{}\nui.initOAuth({});",
-        END_MARKER,
-        serde_json::to_string_pretty(config)?
-    );
-    Ok(file.replace(END_MARKER, &init_string))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const TEST_CONTENT: &str = r###""
-    //<editor-fold desc=\"Changeable Configuration Block\">
-    window.ui = SwaggerUIBundle({
-        {{urls}},
-        dom_id: '#swagger-ui',
-        deepLinking: true,
-        presets: [
-            SwaggerUIBundle.presets.apis,
-            SwaggerUIStandalonePreset
-        ],
-        plugins: [
-            SwaggerUIBundle.plugins.DownloadUrl
-        ],
-        layout: "StandaloneLayout"
-    });
-    //</editor-fold>
-    ""###;
-
-    #[test]
-    fn format_swagger_config_oauth() {
-        let config = Config {
-            client_id: Some(String::from("my-special-client")),
-            ..Default::default()
-        };
-        let file = super::format_swagger_config(&config, TEST_CONTENT.to_string()).unwrap();
-
-        let expected = r#"
-ui.initOAuth({
-  "clientId": "my-special-client"
-});"#;
-        assert!(
-            file.contains(expected),
-            "expected file to contain {}, was {}",
-            expected,
-            file
-        )
     }
 }

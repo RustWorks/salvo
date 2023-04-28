@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{AsResponse, AsSchema, RefOr, Response, Responses, Schema, SecurityScheme};
+use crate::{AsResponse, RefOr, Response, Responses, Schema, SecurityScheme};
 
 /// Implements [OpenAPI Components Object][components] which holds supported
 /// reusable objects.
@@ -41,9 +41,9 @@ pub struct Components {
 }
 
 impl Components {
-    /// Construct a new [`Components`].
+    /// Construct a new empty [`Components`]. This is effectively same as calling [`Components::default`].
     pub fn new() -> Self {
-        Self { ..Default::default() }
+        Default::default()
     }
     /// Add [`SecurityScheme`] to [`Components`]
     ///
@@ -82,24 +82,6 @@ impl Components {
         self.schemas.insert(name.into(), schema.into());
         self
     }
-
-    pub fn schema_from<I: AsSchema>(mut self) -> Self {
-        let aliases = I::aliases();
-
-        // TODO a temporal hack to add the main schema only if there are no aliases pre-defined.
-        // Eventually aliases functionality should be extracted out from the `AsSchema`. Aliases
-        // are created when the main schema is a generic type which should be included in OpenAPI
-        // spec in its generic form.
-        if aliases.is_empty() {
-            let (name, schema) = I::schema();
-            if let Some(name) = name {
-                self.schemas.insert(name.into(), schema);
-            }
-        }
-
-        self.schemas_from_iter(aliases)
-    }
-
     /// Add [`Schema`]s from iterator.
     ///
     /// # Examples
@@ -117,26 +99,29 @@ impl Components {
     ///     ),
     /// )]);
     /// ```
-    pub fn schemas_from_iter<I: IntoIterator<Item = (S, C)>, C: Into<RefOr<Schema>>, S: Into<String>>(
-        mut self,
-        schemas: I,
-    ) -> Self {
+    pub fn schemas_from_iter<I, C, S>(mut self, schemas: I) -> Self
+    where
+        I: IntoIterator<Item = (S, C)>,
+        C: Into<RefOr<Schema>>,
+        S: Into<String>,
+    {
         self.schemas
             .extend(schemas.into_iter().map(|(name, schema)| (name.into(), schema.into())));
-
         self
     }
 
+    /// Add a new response and returns `self`.
     pub fn response<S: Into<String>, R: Into<RefOr<Response>>>(mut self, name: S, response: R) -> Self {
         self.responses.insert(name.into(), response.into());
         self
     }
 
+    /// Get [`Response`] information form type implements `AsResponse`] and add it to [`Components`].
     pub fn response_from<I: AsResponse>(self) -> Self {
         let (name, response) = I::response();
         self.response(name, response)
     }
-
+    /// Extends responses with the contents of an iterator.
     pub fn extend_responses<I: IntoIterator<Item = (S, R)>, S: Into<String>, R: Into<RefOr<Response>>>(
         mut self,
         responses: I,
@@ -161,6 +146,10 @@ impl Components {
         self
     }
 
+    /// Moves all elements from `other` into `self`, leaving `other` empty.
+    ///
+    /// If a key from `other` is already present in `self`, the respective
+    /// value from `self` will be overwritten with the respective value from `other`.
     pub fn append(&mut self, other: &mut Components) {
         other.schemas.retain(|name, _| !self.schemas.contains_key(name));
         self.schemas.append(&mut other.schemas);
@@ -174,6 +163,7 @@ impl Components {
         self.security_schemes.append(&mut other.security_schemes);
     }
 
+    /// Returns `true` if instance contains no elements.
     pub fn is_empty(&self) -> bool {
         self.schemas.is_empty() && self.responses.is_empty() && self.security_schemes.is_empty()
     }

@@ -95,8 +95,6 @@ pub struct SseEvent {
 
 impl SseEvent {
     /// Sets Server-sent event data.
-    ///
-    /// Data field(s) ("data:<content>")
     #[inline]
     pub fn data<T: Into<String>>(mut self, data: T) -> SseEvent {
         self.data = Some(DataType::Text(data.into()));
@@ -104,8 +102,6 @@ impl SseEvent {
     }
 
     /// Sets Server-sent event data.
-    ///
-    /// data field(s) ("data:<content>")
     #[inline]
     pub fn json_data<T: Serialize>(mut self, data: T) -> Result<SseEvent, Error> {
         self.data = Some(DataType::Json(serde_json::to_string(&data)?));
@@ -113,8 +109,6 @@ impl SseEvent {
     }
 
     /// Sets Server-sent event comment.`
-    ///
-    /// Comment field (":<comment-text>")
     #[inline]
     pub fn comment<T: Into<String>>(mut self, comment: T) -> SseEvent {
         self.comment = Some(comment.into());
@@ -122,8 +116,6 @@ impl SseEvent {
     }
 
     /// Sets Server-sent event event.
-    ///
-    /// Event name field ("event:<event-name>")
     #[inline]
     pub fn name<T: Into<String>>(mut self, event: T) -> SseEvent {
         self.name = Some(event.into());
@@ -131,8 +123,6 @@ impl SseEvent {
     }
 
     /// Sets Server-sent event retry.
-    ///
-    /// Retry timeout field ("retry:<timeout>")
     #[inline]
     pub fn retry(mut self, duration: Duration) -> SseEvent {
         self.retry = Some(duration);
@@ -140,8 +130,6 @@ impl SseEvent {
     }
 
     /// Sets Server-sent event id.
-    ///
-    /// Identifier field ("id:<identifier>")
     #[inline]
     pub fn id<T: Into<String>>(mut self, id: T) -> SseEvent {
         self.id = Some(id.into());
@@ -220,8 +208,10 @@ impl Display for SseEvent {
 pub struct SseKeepAlive<S> {
     #[pin]
     event_stream: S,
-    comment: Cow<'static, str>,
-    max_interval: Duration,
+    /// Comment field.
+    pub comment: Cow<'static, str>,
+    /// Max interval between keep-alive messages.
+    pub max_interval: Duration,
     #[pin]
     alive_timer: Sleep,
 }
@@ -247,7 +237,7 @@ where
     ///
     /// Default is 15 seconds.
     #[inline]
-    pub fn with_interval(mut self, time: Duration) -> Self {
+    pub fn max_interval(mut self, time: Duration) -> Self {
         self.max_interval = time;
         self
     }
@@ -256,7 +246,7 @@ where
     ///
     /// Default is an empty comment.
     #[inline]
-    pub fn with_comment(mut self, comment: impl Into<Cow<'static, str>>) -> Self {
+    pub fn comment(mut self, comment: impl Into<Cow<'static, str>>) -> Self {
         self.comment = comment.into();
         self
     }
@@ -364,8 +354,8 @@ mod tests {
         let event_stream = tokio_stream::iter(vec![Ok::<_, Infallible>(SseEvent::default().data("1"))]);
         let mut res = Response::new();
         SseKeepAlive::new(event_stream)
-            .with_comment("love you")
-            .with_interval(Duration::from_secs(1))
+            .comment("love you")
+            .max_interval(Duration::from_secs(1))
             .streaming(&mut res)
             .unwrap();
         let text = res.take_string().await.unwrap();

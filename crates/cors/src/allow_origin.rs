@@ -68,10 +68,7 @@ impl AllowOrigin {
         Self(OriginInner::Judge(Arc::new(f)))
     }
 
-    /// Allow any origin, by mirroring the request origin
-    ///
-    /// This is equivalent to
-    /// [`AllowOrigin::predicate(|_, _| true)`][Self::predicate].
+    /// Allow any origin, by mirroring the request origin.
     ///
     /// See [`Cors::allow_origin`] for more details.
     ///
@@ -148,6 +145,15 @@ impl<'a> From<&'a String> for AllowOrigin {
 
 impl<'a> From<Vec<&'a str>> for AllowOrigin {
     fn from(vals: Vec<&'a str>) -> Self {
+        Self::list(
+            vals.iter()
+                .map(|v| HeaderValue::from_str(v).unwrap())
+                .collect::<Vec<_>>(),
+        )
+    }
+}
+impl<'a, const N: usize> From<[&'a str; N]> for AllowOrigin {
+    fn from(vals: [&'a str; N]) -> Self {
         Self::list(
             vals.iter()
                 .map(|v| HeaderValue::from_str(v).unwrap())

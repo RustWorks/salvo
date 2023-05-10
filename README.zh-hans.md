@@ -180,12 +180,12 @@ async fn upload(req: &mut Request, res: &mut Response) {
     if let Some(file) = file {
         let dest = format!("temp/{}", file.name().unwrap_or_else(|| "file".into()));
         if let Err(e) = std::fs::copy(&file.path, Path::new(&dest)) {
-            res.set_status_code(StatusCode::INTERNAL_SERVER_ERROR);
+            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
         } else {
             res.render("Ok");
         }
     } else {
-        res.set_status_code(StatusCode::BAD_REQUEST);
+        res.status_code(StatusCode::BAD_REQUEST);
     }
 }
 ```
@@ -269,8 +269,8 @@ struct Nested<'a> {
 无需对项目做大的改动，即可实现对 OpenAPI 的完美支持。
 
 ```rust
-#[derive(Serialize, Deserialize, AsSchema, Debug)]
-struct MyObject<T: AsSchema + std::fmt::Debug> {
+#[derive(Serialize, Deserialize, ToSchema, Debug)]
+struct MyObject<T: ToSchema + std::fmt::Debug> {
     value: T,
 }
 

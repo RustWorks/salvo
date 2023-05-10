@@ -49,13 +49,13 @@ pub async fn create_todo(req: &mut Request, res: &mut Response) {
     for todo in vec.iter() {
         if todo.id == new_todo.id {
             tracing::debug!(id = ?new_todo.id, "todo already exists");
-            res.set_status_code(StatusCode::BAD_REQUEST);
+            res.status_code(StatusCode::BAD_REQUEST);
             return;
         }
     }
 
     vec.push(new_todo);
-    res.set_status_code(StatusCode::CREATED);
+    res.status_code(StatusCode::CREATED);
 }
 
 #[handler]
@@ -68,13 +68,13 @@ pub async fn update_todo(req: &mut Request, res: &mut Response) {
     for todo in vec.iter_mut() {
         if todo.id == id {
             *todo = updated_todo;
-            res.set_status_code(StatusCode::OK);
+            res.status_code(StatusCode::OK);
             return;
         }
     }
 
     tracing::debug!(id = ?id, "todo is not found");
-    res.set_status_code(StatusCode::NOT_FOUND);
+    res.status_code(StatusCode::NOT_FOUND);
 }
 
 #[handler]
@@ -89,10 +89,10 @@ pub async fn delete_todo(req: &mut Request, res: &mut Response) {
 
     let deleted = vec.len() != len;
     if deleted {
-        res.set_status_code(StatusCode::NO_CONTENT);
+        res.status_code(StatusCode::NO_CONTENT);
     } else {
         tracing::debug!(id = ?id, "todo is not found");
-        res.set_status_code(StatusCode::NOT_FOUND);
+        res.status_code(StatusCode::NOT_FOUND);
     }
 }
 
@@ -133,18 +133,18 @@ mod tests {
             super::start_server().await;
         });
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        let resp = TestClient::post("http://127.0.0.1:5800/todos")
+        let res = TestClient::post("http://127.0.0.1:5800/todos")
             .json(&test_todo())
             .send(super::route())
             .await;
 
-        assert_eq!(resp.status_code().unwrap(), StatusCode::CREATED);
-        let resp = TestClient::post("http://127.0.0.1:5800/todos")
+        assert_eq!(res.status_code.unwrap(), StatusCode::CREATED);
+        let res = TestClient::post("http://127.0.0.1:5800/todos")
             .json(&test_todo())
             .send(super::route())
             .await;
 
-        assert_eq!(resp.status_code().unwrap(), StatusCode::BAD_REQUEST);
+        assert_eq!(res.status_code.unwrap(), StatusCode::BAD_REQUEST);
     }
 
     fn test_todo() -> Todo {

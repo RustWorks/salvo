@@ -191,12 +191,12 @@ async fn upload(req: &mut Request, res: &mut Response) {
     if let Some(file) = file {
         let dest = format!("temp/{}", file.name().unwrap_or_else(|| "file".into()));
         if let Err(e) = tokio::fs::copy(&file.path, Path::new(&dest)).await {
-            res.set_status_code(StatusCode::INTERNAL_SERVER_ERROR);
+            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
         } else {
             res.render("Ok");
         }
     } else {
-        res.set_status_code(StatusCode::BAD_REQUEST);
+        res.status_code(StatusCode::BAD_REQUEST);
     }
 }
 ```
@@ -278,8 +278,8 @@ View [full source code](https://github.com/salvo-rs/salvo/blob/main/examples/ext
 Perfect support for OpenAPI can be achieved without making significant changes to the project.
 
 ```rust
-#[derive(Serialize, Deserialize, AsSchema, Debug)]
-struct MyObject<T: AsSchema + std::fmt::Debug> {
+#[derive(Serialize, Deserialize, ToSchema, Debug)]
+struct MyObject<T: ToSchema + std::fmt::Debug> {
     value: T,
 }
 

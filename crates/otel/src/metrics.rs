@@ -3,6 +3,7 @@ use std::time::Instant;
 use opentelemetry::metrics::{Counter, Histogram, Unit};
 use opentelemetry::{global, Context};
 use opentelemetry_semantic_conventions::trace;
+use salvo_core::http::ResBody;
 use salvo_core::prelude::*;
 
 /// Middleware for metrics with OpenTelemetry.
@@ -18,7 +19,6 @@ impl Default for Metrics {
     }
 }
 
-#[handler]
 impl Metrics {
     /// Create `Metrics` middleware with `meter`.
     pub fn new() -> Self {
@@ -39,6 +39,10 @@ impl Metrics {
                 .init(),
         }
     }
+}
+
+#[async_trait]
+impl Handler for Metrics {
     async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
         let cx = Context::new();
 
@@ -50,12 +54,12 @@ impl Metrics {
         ctrl.call_next(req, depot, res).await;
         let elapsed = s.elapsed();
 
-        let status = res.status_code().unwrap_or(StatusCode::NOT_FOUND);
+        let status = res.status_code.unwrap_or(StatusCode::NOT_FOUND);
         labels.push(trace::HTTP_STATUS_CODE.i64(status.as_u16() as i64));
         if status.is_client_error() || status.is_server_error() {
             self.error_count.add(&cx, 1, &labels);
-            let msg = if let Some(e) = res.status_error() {
-                e.to_string()
+            let msg = if let ResBody::Error(body) = &res.body {
+                body.to_string()
             } else {
                 format!("ErrorCode: {}", status.as_u16())
             };

@@ -303,24 +303,24 @@ impl Router {
     ///
     /// [`SchemeFilter`]: super::filter::HostFilter
     #[inline]
-    pub fn scheme(self, scheme: Scheme, default: bool) -> Self {
-        self.filter(filter::scheme(scheme, default))
+    pub fn scheme(self, scheme: Scheme) -> Self {
+        self.filter(filter::scheme(scheme))
     }
 
     /// Add a [`HostFilter`] to current router.
     ///
     /// [`HostFilter`]: super::filter::HostFilter
     #[inline]
-    pub fn host(self, host: impl Into<String>, default: bool) -> Self {
-        self.filter(filter::host(host, default))
+    pub fn host(self, host: impl Into<String>) -> Self {
+        self.filter(filter::host(host))
     }
 
     /// Add a [`PortFilter`] to current router.
     ///
     /// [`PortFilter`]: super::filter::PortFilter
     #[inline]
-    pub fn port(self, port: u16, default: bool) -> Self {
-        self.filter(filter::port(port, default))
+    pub fn port(self, port: u16) -> Self {
+        self.filter(filter::port(port))
     }
 
     /// Create a new child router with [`MethodFilter`] to filter get method and set this child router's handler.
@@ -606,7 +606,7 @@ mod tests {
     #[test]
     fn test_router_detect9() {
         let router =
-            Router::new().push(Router::with_path("users/<*sub:/(images|css)/>/<filename>").handle(fake_handler));
+            Router::new().push(Router::with_path("users/<sub:/(images|css)/>/<filename>").handle(fake_handler));
         let mut req = TestClient::get("http://local.host/users/12/m.jpg").build();
         let mut path_state = PathState::new(req.uri().path());
         let matched = router.detect(&mut req, &mut path_state);

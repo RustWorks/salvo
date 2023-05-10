@@ -12,7 +12,7 @@
 //!
 //! #[handler]
 //! async fn handle404(&self, _req: &Request, _depot: &Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
-//!     if let Some(StatusCode::NOT_FOUND) = res.status_code() {
+//!     if let Some(StatusCode::NOT_FOUND) = res.status_code {
 //!         res.render("Custom 404 Error Page");
 //!         ctrl.skip_rest();
 //!     }
@@ -20,7 +20,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     Service::new(Router::new()).with_catcher(Catcher::default().hoop(handle404));
+//!     Service::new(Router::new()).catcher(Catcher::default().hoop(handle404));
 //! }
 //! ```
 //!
@@ -35,11 +35,12 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use mime::Mime;
 use once_cell::sync::Lazy;
 
 use crate::handler::{Handler, WhenHoop};
-use crate::http::{guess_accept_mime, header, Request, Response, StatusCode, StatusError};
+use crate::http::{guess_accept_mime, header, Request, ResBody, Response, StatusCode, StatusError};
 use crate::{Depot, FlowCtrl};
 
 static SUPPORTED_FORMATS: Lazy<Vec<mime::Name>> = Lazy::new(|| vec![mime::JSON, mime::HTML, mime::XML, mime::PLAIN]);
@@ -127,7 +128,7 @@ fn status_error_xml(code: StatusCode, name: &str, summary: Option<&str>, detail:
 }
 /// Create bytes from `StatusError`.
 #[inline]
-pub fn status_error_bytes(err: &StatusError, prefer_format: &Mime, footer: Option<&str>) -> (Mime, Vec<u8>) {
+pub fn status_error_bytes(err: &StatusError, prefer_format: &Mime, footer: Option<&str>) -> (Mime, Bytes) {
     let format = if !SUPPORTED_FORMATS.contains(&prefer_format.subtype()) {
         "text/html".parse().unwrap()
     } else {
@@ -145,7 +146,7 @@ pub fn status_error_bytes(err: &StatusError, prefer_format: &Mime, footer: Optio
             footer,
         ),
     };
-    (format, content.as_bytes().to_owned())
+    (format, Bytes::from(content))
 }
 
 /// Default implementation of [`Catcher`].
@@ -252,8 +253,8 @@ impl DefaultHandler {
 #[async_trait]
 impl Handler for DefaultHandler {
     async fn handle(&self, req: &mut Request, _depot: &mut Depot, res: &mut Response, _ctrl: &mut FlowCtrl) {
-        let status = res.status_code().unwrap_or(StatusCode::NOT_FOUND);
-        if (status.is_server_error() || status.is_client_error()) && res.body.is_none() {
+        let status = res.status_code.unwrap_or(StatusCode::NOT_FOUND);
+        if (status.is_server_error() || status.is_client_error()) && (res.body.is_none() || res.body.is_error()) {
             write_error_default(req, res, self.footer.as_deref());
         }
     }
@@ -262,10 +263,10 @@ impl Handler for DefaultHandler {
 #[doc(hidden)]
 pub fn write_error_default(req: &Request, res: &mut Response, footer: Option<&str>) {
     let format = guess_accept_mime(req, None);
-    let (format, data) = if res.status_error.is_some() {
-        status_error_bytes(res.status_error.as_ref().unwrap(), &format, footer)
+    let (format, data) = if let ResBody::Error(body) = &res.body {
+        status_error_bytes(body, &format, footer)
     } else {
-        let status = res.status_code().unwrap_or(StatusCode::NOT_FOUND);
+        let status = res.status_code.unwrap_or(StatusCode::NOT_FOUND);
         status_error_bytes(&StatusError::from_code(status).unwrap(), &format, footer)
     };
     res.headers_mut()
@@ -284,14 +285,14 @@ mod tests {
     #[async_trait]
     impl Writer for CustomError {
         async fn write(mut self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
-            res.set_status_code(StatusCode::INTERNAL_SERVER_ERROR);
+            res.status_code = Some(StatusCode::INTERNAL_SERVER_ERROR);
             res.render("custom error");
         }
     }
 
     #[handler]
     async fn handle404(&self, _req: &Request, _depot: &Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
-        if let Some(StatusCode::NOT_FOUND) = res.status_code() {
+        if let Some(StatusCode::NOT_FOUND) = res.status_code {
             res.render("Custom 404 Error Page");
             ctrl.skip_rest();
         }
@@ -325,7 +326,7 @@ mod tests {
             "Hello World"
         }
         let router = Router::new().get(hello);
-        let service = Service::new(router).with_catcher(Catcher::default().hoop(handle404));
+        let service = Service::new(router).catcher(Catcher::default().hoop(handle404));
 
         async fn access(service: &Service, name: &str) -> String {
             TestClient::get(format!("http://127.0.0.1:5800/{}", name))

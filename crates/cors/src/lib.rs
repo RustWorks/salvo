@@ -34,7 +34,7 @@
 
 use bytes::{BufMut, BytesMut};
 use salvo_core::http::header::{self, HeaderMap, HeaderName, HeaderValue};
-use salvo_core::http::{Method, Request, Response};
+use salvo_core::http::{Method, Request, Response, StatusCode};
 use salvo_core::{async_trait, Depot, FlowCtrl, Handler};
 
 mod allow_credentials;
@@ -78,8 +78,6 @@ where
 }
 
 /// [`Cors`] middleware which adds headers for [CORS][mdn].
-///
-/// See the [module docs](crate::cors) for an example.
 ///
 /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
 #[derive(Clone, Debug)]
@@ -236,6 +234,7 @@ impl Cors {
         self.ensure_usable_cors_rules();
         CorsHandler(self)
     }
+
     fn ensure_usable_cors_rules(&self) {
         if self.allow_credentials.is_true() {
             assert!(
@@ -266,6 +265,7 @@ impl Cors {
 }
 
 /// CorsHandler
+#[derive(Clone, Debug)]
 pub struct CorsHandler(Cors);
 
 #[async_trait]
@@ -301,6 +301,7 @@ impl Handler for CorsHandler {
             headers.extend(self.0.allow_methods.to_header(origin, req, depot));
             headers.extend(self.0.allow_headers.to_header(origin, req, depot));
             headers.extend(self.0.max_age.to_header(origin, req, depot));
+            res.status_code = Some(StatusCode::NO_CONTENT);
         } else {
             // This header is applied only to non-preflight requests
             headers.extend(self.0.expose_headers.to_header(origin, req, depot));

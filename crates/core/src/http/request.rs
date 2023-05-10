@@ -1,6 +1,5 @@
 //! Http request.
 
-use std::collections::HashMap;
 use std::fmt::{self, Formatter};
 
 use bytes::Bytes;
@@ -12,6 +11,7 @@ pub use http::request::Parts;
 use http::uri::{Scheme, Uri};
 use http::{self, Extensions};
 use http_body_util::{BodyExt, Limited};
+use indexmap::IndexMap;
 use mime;
 use multimap::MultiMap;
 use once_cell::sync::OnceCell;
@@ -59,7 +59,7 @@ pub struct Request {
     #[cfg(feature = "cookie")]
     pub(crate) cookies: CookieJar,
 
-    pub(crate) params: HashMap<String, String>,
+    pub(crate) params: IndexMap<String, String>,
 
     // accept: Option<Vec<Mime>>,
     pub(crate) queries: OnceCell<MultiMap<String, String>>,
@@ -108,7 +108,7 @@ impl Request {
             method: Method::default(),
             #[cfg(feature = "cookie")]
             cookies: CookieJar::default(),
-            params: HashMap::new(),
+            params: IndexMap::new(),
             queries: OnceCell::new(),
             form_data: tokio::sync::OnceCell::new(),
             payload: tokio::sync::OnceCell::new(),
@@ -161,7 +161,7 @@ impl Request {
             #[cfg(feature = "cookie")]
             cookies,
             // accept: None,
-            params: HashMap::new(),
+            params: IndexMap::new(),
             form_data: tokio::sync::OnceCell::new(),
             payload: tokio::sync::OnceCell::new(),
             // multipart: OnceCell::new(),
@@ -437,12 +437,12 @@ impl Request {
     }
     /// Get params reference.
     #[inline]
-    pub fn params(&self) -> &HashMap<String, String> {
+    pub fn params(&self) -> &IndexMap<String, String> {
         &self.params
     }
     /// Get params mutable reference.
     #[inline]
-    pub fn params_mut(&mut self) -> &mut HashMap<String, String> {
+    pub fn params_mut(&mut self) -> &mut IndexMap<String, String> {
         &mut self.params
     }
 

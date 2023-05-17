@@ -15,15 +15,15 @@
 //!
 //! fn sse_events() -> impl Stream<Item = Result<SseEvent, Infallible>> {
 //!     iter(vec![
-//!         Ok(SseEvent::default().data("unnamed event")),
+//!         Ok(SseEvent::default().text("unnamed event")),
 //!         Ok(
 //!             SseEvent::default().name("chat")
-//!             .data("chat message")
+//!             .text("chat message")
 //!         ),
 //!         Ok(
 //!             SseEvent::default().id(13.to_string())
 //!             .name("chat")
-//!             .data("other chat message\nwith next line")
+//!             .text("other chat message\nwith next line")
 //!             .retry(Duration::from_millis(5000))
 //!         )
 //!     ])
@@ -60,7 +60,6 @@ use futures_util::future;
 use futures_util::stream::{Stream, TryStream, TryStreamExt};
 use pin_project::pin_project;
 use salvo_core::http::header::{HeaderValue, CACHE_CONTROL, CONTENT_TYPE};
-use serde_json::{self, Error};
 use tokio::time::{self, Sleep};
 
 use salvo_core::http::Response;
@@ -96,14 +95,14 @@ pub struct SseEvent {
 impl SseEvent {
     /// Sets Server-sent event data.
     #[inline]
-    pub fn data<T: Into<String>>(mut self, data: T) -> SseEvent {
+    pub fn text<T: Into<String>>(mut self, data: T) -> SseEvent {
         self.data = Some(DataType::Text(data.into()));
         self
     }
 
     /// Sets Server-sent event data.
     #[inline]
-    pub fn json_data<T: Serialize>(mut self, data: T) -> Result<SseEvent, Error> {
+    pub fn json<T: Serialize>(mut self, data: T) -> Result<SseEvent, serde_json::Error> {
         self.data = Some(DataType::Json(serde_json::to_string(&data)?));
         Ok(self)
     }
@@ -254,17 +253,10 @@ where
     /// Send stream.
     #[inline]
     pub fn streaming(self, res: &mut Response) -> salvo_core::Result<()> {
-        write_request_headers(res);
-        let body_stream = self
-            .map_err(|e| {
-                tracing::error!("sse stream error: {}", e);
-                SseError
-            })
-            .into_stream()
-            .and_then(|event| future::ready(Ok(event.to_string())));
-        res.streaming(body_stream)
+        streaming(res, self)
     }
 }
+
 #[inline]
 fn write_request_headers(res: &mut Response) {
     res.headers_mut()
@@ -340,8 +332,8 @@ mod tests {
     #[tokio::test]
     async fn test_sse_data() {
         let event_stream = tokio_stream::iter(vec![
-            Ok::<_, Infallible>(SseEvent::default().data("1")),
-            Ok::<_, Infallible>(SseEvent::default().data("2")),
+            Ok::<_, Infallible>(SseEvent::default().text("1")),
+            Ok::<_, Infallible>(SseEvent::default().text("2")),
         ]);
         let mut res = Response::new();
         super::streaming(&mut res, event_stream).unwrap();
@@ -351,7 +343,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sse_keep_alive() {
-        let event_stream = tokio_stream::iter(vec![Ok::<_, Infallible>(SseEvent::default().data("1"))]);
+        let event_stream = tokio_stream::iter(vec![Ok::<_, Infallible>(SseEvent::default().text("1"))]);
         let mut res = Response::new();
         SseKeepAlive::new(event_stream)
             .comment("love you")
@@ -369,7 +361,7 @@ mod tests {
             name: String,
         }
 
-        let event_stream = tokio_stream::iter(vec![SseEvent::default().json_data(User {
+        let event_stream = tokio_stream::iter(vec![SseEvent::default().json(User {
             name: "jobs".to_owned(),
         })]);
         let mut res = Response::new();

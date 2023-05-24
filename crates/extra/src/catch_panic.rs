@@ -4,7 +4,7 @@ use std::panic::AssertUnwindSafe;
 use futures_util::FutureExt;
 
 use salvo_core::http::{Request, Response, StatusError};
-use salvo_core::{async_trait, Depot, FlowCtrl, Handler};
+use salvo_core::{async_trait, Depot, FlowCtrl, Error, Handler};
 
 /// This middleware catches panics and write `500 INTERNAL SERVER ERROR`
 /// into response. This middleware should be used as the first middleware.
@@ -23,10 +23,11 @@ impl Handler for CatchPanic {
     async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
         if let Err(e) = AssertUnwindSafe(ctrl.call_next(req, depot, res)).catch_unwind().await {
             tracing::error!(error = ?e, "panic occurred");
-            #[cfg(debug_assertions)]
-            res.render(StatusError::internal_server_error().detail("panic occurred"));
-            #[cfg(not(debug_assertions))]
-            res.render(StatusError::internal_server_error());
+            res.render(
+                StatusError::internal_server_error()
+                    .brief("panic occurred on server")
+                    .cause(Error::other(format!("{e:#?}"))),
+            );
         }
     }
 }

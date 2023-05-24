@@ -1,5 +1,5 @@
 use std::error::Error as StdError;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 
 use crate::http::{ResBody, StatusCode};
 
@@ -9,15 +9,15 @@ use crate::{Piece, Response};
 pub type StatusResult<T> = Result<T, StatusError>;
 
 macro_rules! default_errors {
-    ($($sname:ident, $code:expr, $name:expr, $summary:expr);+) => {
+    ($($sname:ident, $code:expr, $name:expr, $brief:expr);+) => {
         $(
             /// Create a new `StatusError`.
             pub fn $sname() -> StatusError {
                 StatusError {
                     code: $code,
                     name: $name.into(),
-                    summary: Some($summary.into()),
-                    detail: None,
+                    brief: $brief.into(),
+                    cause: None,
                 }
             }
         )+
@@ -31,20 +31,23 @@ pub struct StatusError {
     pub code: StatusCode,
     /// Http error name.
     pub name: String,
-    /// Summary information about http error.
-    pub summary: Option<String>,
-    /// Detail information about http error.
-    pub detail: Option<String>,
+    /// Brief information about http error.
+    pub brief: String,
+    /// Cause about http error. This field is only used for internal debugging and only used in debug mode.
+    pub cause: Option<Box<dyn StdError + Sync + Send + 'static>>,
 }
 impl StatusError {
-    /// Sets summary field and returns Self.
-    pub fn summary(mut self, summary: impl Into<String>) -> Self {
-        self.summary = Some(summary.into());
+    /// Sets brief field and returns Self.
+    pub fn brief(mut self, brief: impl Into<String>) -> Self {
+        self.brief = brief.into();
         self
     }
-    /// Sets detail field and returns Self.
-    pub fn detail(mut self, detail: impl Into<String>) -> Self {
-        self.detail = Some(detail.into());
+    /// Sets cause field and returns Self.
+    pub fn cause<C>(mut self, cause: C) -> Self
+    where
+        C: Into<Box<dyn StdError + Sync + Send + 'static>>,
+    {
+        self.cause = Some(cause.into());
         self
     }
 
@@ -98,8 +101,8 @@ impl Display for StatusError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "code: {}", &self.code)?;
         write!(f, "name: {}", &self.name)?;
-        write!(f, "summary: {:?}", &self.summary)?;
-        write!(f, "detail: {:?}", &self.detail)?;
+        write!(f, "brief: {:?}", &self.brief)?;
+        write!(f, "cause: {:?}", &self.cause)?;
         Ok(())
     }
 }

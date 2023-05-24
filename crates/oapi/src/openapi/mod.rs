@@ -1,6 +1,8 @@
 //! Rust implementation of Openapi Spec V3.
 use std::collections::{btree_map, BTreeSet};
 
+use once_cell::sync::Lazy;
+use regex::Regex;
 use salvo_core::{async_trait, writer, Depot, FlowCtrl, Handler, Router};
 use serde::{de::Visitor, Deserialize, Serialize, Serializer};
 
@@ -42,6 +44,8 @@ mod tag;
 mod xml;
 
 use crate::{router::NormNode, Endpoint};
+
+static PARAMETER_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r#"\{([^]]+)\}"#).unwrap());
 
 /// Root object of the OpenAPI document.
 ///
@@ -166,17 +170,20 @@ impl OpenApi {
 
     /// Add [`Info`] metadata of the API.
     pub fn info<I: Into<Info>>(mut self, info: I) -> Self {
-        set_value!(self info info.into())
+        self.info = info.into();
+        self
     }
 
     /// Add iterator of [`Server`]s to configure target servers.
     pub fn servers<S: IntoIterator<Item = Server>>(mut self, servers: S) -> Self {
-        set_value!(self servers servers.into_iter().collect())
+        self.servers = servers.into_iter().collect();
+        self
     }
 
     /// Set paths to configure operations and endpoints of the API.
     pub fn paths<P: Into<Paths>>(mut self, paths: P) -> Self {
-        set_value!(self paths paths.into())
+        self.paths = paths.into();
+        self
     }
     /// Add [`PathItem`] to configure operations and endpoints of the API.
     pub fn add_path<P, I>(mut self, path: P, item: I) -> Self
@@ -190,22 +197,30 @@ impl OpenApi {
 
     /// Add [`Components`] to configure reusable schemas.
     pub fn components(mut self, components: impl Into<Components>) -> Self {
-        set_value!(self components components.into())
+        self.components = components.into();
+        self
     }
 
     /// Add iterator of [`SecurityRequirement`]s that are globally available for all operations.
     pub fn security<S: IntoIterator<Item = SecurityRequirement>>(mut self, security: S) -> Self {
-        set_value!(self security security.into_iter().collect())
+        self.security = security.into_iter().collect();
+        self
     }
 
     /// Add iterator of [`Tag`]s to add additional documentation for **operations** tags.
-    pub fn tags<I: IntoIterator<Item = Tag>>(mut self, tags: I) -> Self {
-        set_value!(self tags tags.into_iter().collect())
+    pub fn tags<I, T>(mut self, tags: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<Tag>,
+    {
+        self.tags = tags.into_iter().map(Into::into).collect();
+        self
     }
 
     /// Add [`ExternalDocs`] for referring additional documentation.
     pub fn external_docs(mut self, external_docs: ExternalDocs) -> Self {
-        set_value!(self external_docs Some(external_docs))
+        self.external_docs = Some(external_docs);
+        self
     }
 
     /// Consusmes the [`OpenApi`] and returns [`Router`] with the [`OpenApi`] as handler.
@@ -237,6 +252,16 @@ impl OpenApi {
         }
 
         let path = join_path(base_path, node.path.as_deref().unwrap_or_default());
+        let parameter_names = PARAMETER_NAME_REGEX
+            .captures(&path)
+            .map(|captures| {
+                captures
+                    .iter()
+                    .skip(1)
+                    .map(|capture| capture.unwrap().as_str().to_owned())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         if let Some(type_id) = &node.type_id {
             if let Some(creator) = crate::EndpointRegistry::find(type_id) {
                 let Endpoint {
@@ -253,6 +278,13 @@ impl OpenApi {
                         PathItemType::Patch,
                     ]
                 };
+                let not_exist_parameters = parameter_names
+                    .iter()
+                    .filter(|name| !operation.parameters.0.iter().any(|parameter| parameter.name == **name))
+                    .collect::<Vec<_>>();
+                if !not_exist_parameters.is_empty() {
+                    tracing::warn!(parameters = ?not_exist_parameters, path, "parameters not found in operation");
+                }
                 let path_item = self.paths.entry(path.clone()).or_default();
                 for method in methods {
                     if let btree_map::Entry::Vacant(e) = path_item.operations.entry(method) {
@@ -293,8 +325,8 @@ impl Handler for OpenApi {
 /// [version]: <https://spec.openapis.org/oas/latest.html#versions>
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum OpenApiVersion {
-    /// Will serialize to `3.0.3` the latest from 3.0 serde.
-    #[serde(rename = "3.0.3")]
+    /// Will serialize to `3.1.0` the latest from 3.0 serde.
+    #[serde(rename = "3.1.0")]
     Version3,
 }
 
@@ -421,14 +453,6 @@ pub enum RefOr<T> {
     T(T),
 }
 
-macro_rules! set_value {
-    ( $self:ident $field:ident $value:expr ) => {{
-        $self.$field = $value;
-        $self
-    }};
-}
-pub(crate) use set_value;
-
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -439,7 +463,7 @@ mod tests {
 
     #[test]
     fn serialize_deserialize_openapi_version_success() -> Result<(), serde_json::Error> {
-        assert_eq!(serde_json::to_value(&OpenApiVersion::Version3)?, "3.0.3");
+        assert_eq!(serde_json::to_value(&OpenApiVersion::Version3)?, "3.1.0");
         Ok(())
     }
 
@@ -548,7 +572,7 @@ mod tests {
             value,
             json!(
                 {
-                  "openapi": "3.0.3",
+                  "openapi": "3.1.0",
                   "info": {
                     "title": "Api",
                     "version": "v1"

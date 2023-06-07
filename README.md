@@ -211,10 +211,10 @@ You can easily get data from multiple different data sources and assemble it int
 ```rust
 #[derive(Serialize, Deserialize, Extractible, Debug)]
 /// Get the data field value from the body by default.
-#[extract(default_source(from = "body"))]
+#[salvo(extract(default_source(from = "body")))]
 struct GoodMan<'a> {
     /// The id number is obtained from the request path parameter, and the data is automatically parsed as i64 type.
-    #[extract(source(from = "param"))]
+    #[salvo(extract(source(from = "param")))]
     id: i64,
     /// Reference types can be used to avoid memory copying.
     username: &'a str,
@@ -254,16 +254,16 @@ struct MyObject<T: ToSchema + std::fmt::Debug> {
 }
 
 #[endpoint]
-async fn use_string(body: JsonBody<MyObject<String>>, res: &mut Response) {
-    res.render(format!("{:?}", body))
+async fn use_string(body: JsonBody<MyObject<String>>) -> String {
+    format!("{:?}", body)
 }
 #[endpoint]
-async fn use_i32(body: JsonBody<MyObject<i32>>, res: &mut Response) {
-    res.render(format!("{:?}", body))
+async fn use_i32(body: JsonBody<MyObject<i32>>) -> String {
+    format!("{:?}", body)
 }
 #[endpoint]
-async fn use_u64(body: JsonBody<MyObject<u64>>, res: &mut Response) {
-    res.render(format!("{:?}", body))
+async fn use_u64(body: JsonBody<MyObject<u64>>) -> String {
+    format!("{:?}", body)
 }
 
 #[tokio::main]
@@ -275,7 +275,7 @@ async fn main() {
         .push(Router::with_path("u64").post(use_u64))
         .push(Router::with_path("string").post(use_string));
 
-    let doc = OpenApi::new(Info::new("test api", "0.0.1")).merge_router(&router);
+    let doc = OpenApi::new("test api", "0.0.1").merge_router(&router);
 
     let router = router
         .push(doc.into_router("/api-doc/openapi.json"))

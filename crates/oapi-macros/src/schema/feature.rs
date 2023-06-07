@@ -1,17 +1,13 @@
-use syn::{
-    parse::{Parse, ParseBuffer, ParseStream},
-    Attribute,
-};
+use syn::parse::{Parse, ParseBuffer, ParseStream};
+use syn::Attribute;
 
-use crate::{
-    feature::{
-        impl_into_inner, impl_merge, parse_features, AdditionalProperties, Default, Example, ExclusiveMaximum,
-        ExclusiveMinimum, Feature, Format, Inline, IntoInner, MaxItems, MaxLength, MaxProperties, Maximum, Merge,
-        MinItems, MinLength, MinProperties, Minimum, MultipleOf, Nullable, Pattern, ReadOnly, Rename, RenameAll,
-        Required, SchemaWith, Symbol, Title, ValueType, WriteOnly, XmlAttr,
-    },
-    ResultExt,
+use crate::feature::{
+    impl_into_inner, impl_merge, parse_features, AdditionalProperties, Default, Example, ExclusiveMaximum,
+    ExclusiveMinimum, Feature, Format, Inline, IntoInner, MaxItems, MaxLength, MaxProperties, Maximum, Merge, MinItems,
+    MinLength, MinProperties, Minimum, MultipleOf, Nullable, Pattern, ReadOnly, Rename, RenameAll, Required,
+    SchemaWith, Symbol, ValueType, WriteOnly, XmlAttr,
 };
+use crate::{attribute, ResultExt};
 
 #[derive(Debug)]
 pub(crate) struct NamedFieldStructFeatures(Vec<Feature>);
@@ -21,11 +17,11 @@ impl Parse for NamedFieldStructFeatures {
         Ok(NamedFieldStructFeatures(parse_features!(
             input as Example,
             XmlAttr,
-            Title,
+            Symbol,
             RenameAll,
             MaxProperties,
             MinProperties,
-            Symbol,
+            Inline,
             Default
         )))
     }
@@ -41,10 +37,10 @@ impl Parse for UnnamedFieldStructFeatures {
         Ok(UnnamedFieldStructFeatures(parse_features!(
             input as Example,
             Default,
-            Title,
+            Symbol,
             Format,
             ValueType,
-            Symbol
+            Inline
         )))
     }
 }
@@ -58,9 +54,9 @@ impl Parse for EnumFeatures {
         Ok(EnumFeatures(parse_features!(
             input as Example,
             Default,
-            Title,
+            Symbol,
             RenameAll,
-            Symbol
+            Inline
         )))
     }
 }
@@ -75,7 +71,8 @@ impl Parse for ComplexEnumFeatures {
             input as Example,
             Default,
             RenameAll,
-            Symbol
+            Symbol,
+            Inline
         )))
     }
 }
@@ -123,7 +120,7 @@ impl Parse for EnumNamedFieldVariantFeatures {
         Ok(EnumNamedFieldVariantFeatures(parse_features!(
             input as Example,
             XmlAttr,
-            Title,
+            Symbol,
             Rename,
             RenameAll
         )))
@@ -139,7 +136,7 @@ impl Parse for EnumUnnamedFieldVariantFeatures {
         Ok(EnumUnnamedFieldVariantFeatures(parse_features!(
             input as Example,
             Default,
-            Title,
+            Symbol,
             Format,
             ValueType,
             Rename
@@ -186,14 +183,9 @@ impl_merge!(
 pub(crate) fn parse_schema_features<T: Sized + Parse + Merge<T>>(attributes: &[Attribute]) -> Option<T> {
     attributes
         .iter()
-        .filter(|attribute| {
-            attribute
-                .path()
-                .get_ident()
-                .map(|ident| *ident == "schema")
-                .unwrap_or(false)
-        })
-        .map(|attribute| attribute.parse_args::<T>().unwrap_or_abort())
+        .filter(|attribute| attribute.path().is_ident("salvo"))
+        .filter_map(|attr| attribute::find_nested_list(attr, "schema").ok().flatten())
+        .map(|attr| attr.parse_args::<T>().unwrap_or_abort())
         .reduce(|acc, item| acc.merge(item))
 }
 
@@ -206,13 +198,7 @@ pub(crate) fn parse_schema_features_with<
 ) -> Option<T> {
     attributes
         .iter()
-        .filter(|attribute| {
-            attribute
-                .path()
-                .get_ident()
-                .map(|ident| *ident == "schema")
-                .unwrap_or(false)
-        })
+        .filter(|attribute| attribute.path().is_ident("schema"))
         .map(|attributes| attributes.parse_args_with(parser).unwrap_or_abort())
         .reduce(|acc, item| acc.merge(item))
 }

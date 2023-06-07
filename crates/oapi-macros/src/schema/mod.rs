@@ -5,6 +5,8 @@ use proc_macro_error::abort;
 use quote::{quote, ToTokens};
 use syn::{punctuated::Punctuated, Attribute, Data, Fields, FieldsNamed, FieldsUnnamed, Generics, Token};
 
+use crate::feature::{Inline, Symbol};
+
 pub(crate) use self::{
     enum_schemas::*,
     feature::{FromAttributes, NamedFieldStructFeatures, UnnamedFieldStructFeatures},
@@ -13,7 +15,7 @@ pub(crate) use self::{
 };
 
 use super::{
-    feature::{pop_feature_as_inner, Feature, FeaturesExt, IntoInner, Symbol},
+    feature::{pop_feature_as_inner, Feature, FeaturesExt, IntoInner},
     serde::{self, SerdeValue},
     ComponentSchema, FieldRename, VariantRename,
 };
@@ -58,12 +60,16 @@ impl ToTokens for ToSchema<'_> {
 
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
-        let symbol = if let Some(Symbol(symbol)) = variant.get_symbol() {
+        let inline = variant.inline().as_ref().map(|i| i.0).unwrap_or(false);
+        let symbol = if inline {
+            None
+        } else if let Some(symbol) = variant.symbol() {
             let ty_params = self.generics.type_params();
             let ty_params = ty_params
                 .map(|ty_param| {
                     let ty = &ty_param.ident;
-                    quote! {if let Some(symbol) = <#ty as #oapi::oapi::ToSchema>::schema().0 {
+                    quote! {
+                        if let Some(symbol) = <#ty as #oapi::oapi::ToSchema>::schema().0 {
                             symbol
                         } else {
                             std::any::type_name::<#ty>().to_string()
@@ -72,22 +78,34 @@ impl ToTokens for ToSchema<'_> {
                 })
                 .collect::<Punctuated<TokenStream, Token![,]>>();
             if ty_params.is_empty() {
-                quote! { #symbol.replace("::", ".") }
+                Some(quote! { #symbol.to_string().replace(" :: ", ".") })
             } else {
-                quote! { format!("{}<{}>", #symbol, [#ty_params].join(",")).replace("::", ".") }
+                Some(quote! { format!("{}<{}>", #symbol, [#ty_params].join(",")).replace("::", ".") })
             }
         } else {
-            quote! { std::any::type_name::<#ident #ty_generics>().replace("::", ".") }
+            Some(quote! { std::any::type_name::<#ident #ty_generics>().replace("::", ".") })
         };
 
         let (impl_generics, _, _) = self.generics.split_for_impl();
 
-        tokens.extend(quote! {
-            impl #impl_generics #oapi::oapi::ToSchema for #ident #ty_generics #where_clause {
-                fn to_schema(components: &mut #oapi::oapi::Components) -> #oapi::oapi::RefOr<#oapi::oapi::schema::Schema> {
+        let body = match symbol {
+            None => {
+                quote! {
+                    #variant.into()
+                }
+            }
+            Some(symbol) => {
+                quote! {
                     let schema = #variant;
                     components.schemas.insert(#symbol, schema.into());
                     #oapi::oapi::RefOr::Ref(#oapi::oapi::Ref::new(format!("#/components/schemas/{}", #symbol)))
+                }
+            }
+        };
+        tokens.extend(quote! {
+            impl #impl_generics #oapi::oapi::ToSchema for #ident #ty_generics #where_clause {
+                fn to_schema(components: &mut #oapi::oapi::Components) -> #oapi::oapi::RefOr<#oapi::oapi::schema::Schema> {
+                    #body
                 }
             }
         })
@@ -116,18 +134,21 @@ impl<'a> SchemaVariant<'a> {
                     let mut unnamed_features = attributes.parse_features::<UnnamedFieldStructFeatures>().into_inner();
 
                     let symbol = pop_feature_as_inner!(unnamed_features => Feature::Symbol(_v));
+                    let inline = pop_feature_as_inner!(unnamed_features => Feature::Inline(_v));
                     Self::Unnamed(UnnamedStructSchema {
                         struct_name: Cow::Owned(ident.to_string()),
                         attributes,
                         features: unnamed_features,
                         fields: unnamed,
                         symbol,
+                        inline,
                     })
                 }
                 Fields::Named(fields) => {
                     let FieldsNamed { named, .. } = fields;
                     let mut named_features = attributes.parse_features::<NamedFieldStructFeatures>().into_inner();
                     let symbol = pop_feature_as_inner!(named_features => Feature::Symbol(_v));
+                    let inline = pop_feature_as_inner!(named_features => Feature::Inline(_v));
 
                     Self::Named(NamedStructSchema {
                         struct_name: Cow::Owned(ident.to_string()),
@@ -137,6 +158,7 @@ impl<'a> SchemaVariant<'a> {
                         fields: named,
                         generics: Some(generics),
                         symbol,
+                        inline,
                     })
                 }
                 Fields::Unit => Self::Unit(UnitStructVariant),
@@ -153,11 +175,19 @@ impl<'a> SchemaVariant<'a> {
         }
     }
 
-    fn get_symbol(&self) -> &Option<Symbol> {
+    fn symbol(&self) -> &Option<Symbol> {
         match self {
             Self::Enum(schema) => &schema.symbol,
             Self::Named(schema) => &schema.symbol,
             Self::Unnamed(schema) => &schema.symbol,
+            _ => &None,
+        }
+    }
+    fn inline(&self) -> &Option<Inline> {
+        match self {
+            Self::Enum(schema) => &schema.inline,
+            Self::Named(schema) => &schema.inline,
+            Self::Unnamed(schema) => &schema.inline,
             _ => &None,
         }
     }
@@ -205,13 +235,13 @@ impl ToTokens for Property {
 }
 
 trait SchemaFeatureExt {
-    fn split_for_title(self) -> (Vec<Feature>, Vec<Feature>);
+    fn split_for_symbol(self) -> (Vec<Feature>, Vec<Feature>);
 }
 
 impl SchemaFeatureExt for Vec<Feature> {
-    fn split_for_title(self) -> (Vec<Feature>, Vec<Feature>) {
+    fn split_for_symbol(self) -> (Vec<Feature>, Vec<Feature>) {
         self.into_iter()
-            .partition(|feature| matches!(feature, Feature::Title(_)))
+            .partition(|feature| matches!(feature, Feature::Symbol(_)))
     }
 }
 

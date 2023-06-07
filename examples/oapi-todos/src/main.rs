@@ -1,7 +1,5 @@
 use once_cell::sync::Lazy;
 use salvo::oapi::extract::*;
-use salvo::oapi::swagger_ui::SwaggerUi;
-use salvo::oapi::{Info, OpenApi};
 use salvo::prelude::*;
 
 use self::models::*;
@@ -26,7 +24,7 @@ async fn main() {
         ),
     );
 
-    let doc = OpenApi::new(Info::new("todos api", "0.0.1")).merge_router(&router);
+    let doc = OpenApi::new("todos api", "0.0.1").merge_router(&router);
 
     let router = router
         .push(doc.into_router("/api-doc/openapi.json"))
@@ -36,8 +34,9 @@ async fn main() {
     Server::new(acceptor).serve(router).await;
 }
 
+/// List todos.
 #[endpoint]
-pub async fn list_todos(offset: QueryParam<Option<usize>>, limit: QueryParam<Option<usize>>) -> Json<Vec<Todo>> {
+pub async fn list_todos(offset: QueryParam<usize, false>, limit: QueryParam<usize, false>) -> Json<Vec<Todo>> {
     let todos = STORE.lock().await;
     let todos: Vec<Todo> = todos
         .clone()
@@ -48,13 +47,9 @@ pub async fn list_todos(offset: QueryParam<Option<usize>>, limit: QueryParam<Opt
     Json(todos)
 }
 
-#[endpoint(
-    responses(
-        (status = 201, description = "Todo created successfully", body = models::Todo),
-        (status = 409, description = "Todo already exists", body = TodoError, example = json!(TodoError::Config(String::from("id = 1"))))
-    )
-)]
-pub async fn create_todo(new_todo: JsonBody<Todo>, res: &mut Response) {
+/// Create new todo.
+#[endpoint(status_codes(201, 409))]
+pub async fn create_todo(new_todo: JsonBody<Todo>) -> Result<StatusCode, StatusError> {
     tracing::debug!(todo = ?new_todo, "create todo");
 
     let mut vec = STORE.lock().await;
@@ -62,45 +57,34 @@ pub async fn create_todo(new_todo: JsonBody<Todo>, res: &mut Response) {
     for todo in vec.iter() {
         if todo.id == new_todo.id {
             tracing::debug!(id = ?new_todo.id, "todo already exists");
-            res.status_code(StatusCode::BAD_REQUEST);
-            return;
+            return Err(StatusError::bad_request().brief("todo already exists"));
         }
     }
 
     vec.push(new_todo.into_inner());
-    res.status_code(StatusCode::CREATED);
+    Ok(StatusCode::CREATED)
 }
 
-#[endpoint(
-    responses(
-        (status = 200, description = "Todo modified successfully"),
-        (status = 404, description = "Todo not found", body = TodoError, example = json!(TodoError::NotFound(String::from("id = 1"))))
-    ),
-)]
-pub async fn update_todo(id: PathParam<u64>, updated_todo: JsonBody<Todo>, res: &mut Response) {
-    tracing::debug!(todo = ?updated_todo, id = ?id, "update todo");
+/// Update existing todo.
+#[endpoint(status_codes(200, 404))]
+pub async fn update_todo(id: PathParam<u64>, updated: JsonBody<Todo>) -> Result<StatusCode, StatusError> {
+    tracing::debug!(todo = ?updated, id = ?id, "update todo");
     let mut vec = STORE.lock().await;
 
     for todo in vec.iter_mut() {
         if todo.id == *id {
-            *todo = (*updated_todo).clone();
-            res.status_code(StatusCode::OK);
-            return;
+            *todo = (*updated).clone();
+            return Ok(StatusCode::OK);
         }
     }
 
     tracing::debug!(id = ?id, "todo is not found");
-    res.status_code(StatusCode::NOT_FOUND);
+    Err(StatusError::not_found())
 }
 
-#[endpoint(
-    responses(
-        (status = 200, description = "Todo deleted successfully"),
-        (status = 401, description = "Unauthorized to delete Todo"),
-        (status = 404, description = "Todo not found", body = TodoError, example = json!(TodoError::NotFound(String::from("id = 1"))))
-    ),
-)]
-pub async fn delete_todo(id: PathParam<u64>, res: &mut Response) {
+/// Delete todo.
+#[endpoint(status_codes(200, 401, 404))]
+pub async fn delete_todo(id: PathParam<u64>) -> Result<StatusCode, StatusError> {
     tracing::debug!(id = ?id, "delete todo");
 
     let mut vec = STORE.lock().await;
@@ -110,10 +94,10 @@ pub async fn delete_todo(id: PathParam<u64>, res: &mut Response) {
 
     let deleted = vec.len() != len;
     if deleted {
-        res.status_code(StatusCode::NO_CONTENT);
+        Ok(StatusCode::NO_CONTENT)
     } else {
         tracing::debug!(id = ?id, "todo is not found");
-        res.status_code(StatusCode::NOT_FOUND);
+        Err(StatusError::not_found())
     }
 }
 
@@ -138,9 +122,9 @@ mod models {
 
     #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
     pub struct Todo {
-        #[schema(example = 1)]
+        #[salvo(schema(example = 1))]
         pub id: u64,
-        #[schema(example = "Buy coffee")]
+        #[salvo(schema(example = "Buy coffee"))]
         pub text: String,
         pub completed: bool,
     }

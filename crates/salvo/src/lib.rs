@@ -131,6 +131,7 @@ cfg_feature! {
     #![feature ="oapi"]
     #[doc(no_inline)]
     pub use salvo_oapi as oapi;
+    pub use salvo_oapi::endpoint;
 }
 
 /// A list of things that automatically imports into application use salvo.
@@ -206,6 +207,7 @@ pub mod prelude {
     }
     cfg_feature! {
         #![feature ="oapi"]
-        pub use salvo_oapi::endpoint;
+        pub use crate::oapi::{endpoint, EndpointArgRegister, EndpointOutRegister, OpenApi, ToSchema, ToResponse, ToResponses};
+        pub use crate::oapi::swagger_ui::SwaggerUi;
     }
 }

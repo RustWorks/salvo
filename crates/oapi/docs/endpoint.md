@@ -26,12 +26,14 @@ fn endpoint() {}
   The operation_id can be any valid expression (e.g. string literals, macro invocations, variables) so long
   as its result can be converted to a `String` using `String::from`.
 
-* `tag = "..."` Can be used to group operations. Operations with same tag are grouped together. By default
+* `tags = "..."` Can be used to group operations. Operations with same tag are grouped together. By default
   this is derived from the handler that is given to [`OpenApi`][openapi]. If derive results empty str
   then default value _`crate`_ is used instead.
 
 * `request_body = ... | request_body(...)` Defining request body indicates that the request is expecting request body within
   the performed request.
+
+* `status_codes(...)` Filter responses with these status codes, if status code is not exists in this list, the response will ignored.
 
 * `responses(...)` Slice of responses the endpoint is going to possibly return to the caller.
 

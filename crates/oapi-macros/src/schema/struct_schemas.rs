@@ -8,6 +8,7 @@ use crate::{
     component::ComponentSchemaProps,
     doc_comment::CommentAttributes,
     feature::{pop_feature, pop_feature_as_inner, Feature, FeaturesExt, IntoInner, RenameAll, Symbol, ToTokensExt},
+    schema::Inline,
     type_tree::{TypeTree, ValueType},
 };
 
@@ -28,6 +29,7 @@ pub(crate) struct NamedStructSchema<'a> {
     #[allow(dead_code)]
     pub(crate) generics: Option<&'a Generics>,
     pub(crate) symbol: Option<Symbol>,
+    pub(crate) inline: Option<Inline>,
 }
 
 struct NamedStructFieldOptions<'a> {
@@ -92,6 +94,7 @@ impl NamedStructSchema<'_> {
                     description: Some(&comments),
                     deprecated: deprecated.as_ref(),
                     object_name: self.struct_name.as_ref(),
+                    type_definition: true,
                 }))
             },
             rename_field_value: rename_field,
@@ -226,6 +229,7 @@ pub(super) struct UnnamedStructSchema<'a> {
     pub(super) attributes: &'a [Attribute],
     pub(super) features: Option<Vec<Feature>>,
     pub(super) symbol: Option<Symbol>,
+    pub(super) inline: Option<Inline>,
 }
 
 impl ToTokens for UnnamedStructSchema<'_> {
@@ -279,6 +283,7 @@ impl ToTokens for UnnamedStructSchema<'_> {
                     description: None,
                     deprecated: deprecated.as_ref(),
                     object_name: self.struct_name.as_ref(),
+                    type_definition: true,
                 })
                 .to_token_stream(),
             );

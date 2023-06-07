@@ -59,7 +59,7 @@ extern crate self as salvo_oapi;
 /// ```
 /// use salvo_oapi::ToSchema;
 /// #[derive(ToSchema)]
-/// #[schema(example = json!({"name": "bob the cat", "id": 1}))]
+/// #[salvo(schema(example = json!({"name": "bob the cat", "id": 1})))]
 /// struct Pet {
 ///     id: u64,
 ///     name: String,
@@ -213,7 +213,8 @@ impl<K: ToSchema, V: ToSchema> ToSchema for HashMap<K, V> {
 
 impl ToSchema for StatusError {
     fn to_schema(components: &mut Components) -> RefOr<schema::Schema> {
-        Schema::from(
+        let symbol = std::any::type_name::<StatusError>().replace("::", ".");
+        let schema = Schema::from(
             Object::new()
                 .property("code", u16::to_schema(components))
                 .required("code")
@@ -224,8 +225,14 @@ impl ToSchema for StatusError {
                 .required("brief")
                 .property("detail", String::to_schema(components))
                 .property("cause", String::to_schema(components)),
-        )
-        .into()
+        );
+        components.schemas.insert(symbol.clone(), schema.into());
+        crate::RefOr::Ref(crate::Ref::new(format!("#/components/schemas/{}", symbol)))
+    }
+}
+impl ToSchema for salvo_core::Error {
+    fn to_schema(components: &mut Components) -> RefOr<schema::Schema> {
+        StatusError::to_schema(components)
     }
 }
 
@@ -393,6 +400,65 @@ where
             Response::new("Response json format data")
                 .add_content("application/json", Content::new(C::to_schema(components))),
         )
+    }
+}
+
+impl ToResponses for StatusError {
+    fn to_responses(components: &mut Components) -> Responses {
+        let mut responses = Responses::new();
+        let errors = vec![
+            StatusError::bad_request(),
+            StatusError::unauthorized(),
+            StatusError::payment_required(),
+            StatusError::forbidden(),
+            StatusError::not_found(),
+            StatusError::method_not_allowed(),
+            StatusError::not_acceptable(),
+            StatusError::proxy_authentication_required(),
+            StatusError::request_timeout(),
+            StatusError::conflict(),
+            StatusError::gone(),
+            StatusError::length_required(),
+            StatusError::precondition_failed(),
+            StatusError::payload_too_large(),
+            StatusError::uri_too_long(),
+            StatusError::unsupported_media_type(),
+            StatusError::range_not_satisfiable(),
+            StatusError::expectation_failed(),
+            StatusError::im_a_teapot(),
+            StatusError::misdirected_request(),
+            StatusError::unprocessable_entity(),
+            StatusError::locked(),
+            StatusError::failed_dependency(),
+            StatusError::upgrade_required(),
+            StatusError::precondition_required(),
+            StatusError::too_many_requests(),
+            StatusError::request_header_fields_toolarge(),
+            StatusError::unavailable_for_legalreasons(),
+            StatusError::internal_server_error(),
+            StatusError::not_implemented(),
+            StatusError::bad_gateway(),
+            StatusError::service_unavailable(),
+            StatusError::gateway_timeout(),
+            StatusError::http_version_not_supported(),
+            StatusError::variant_also_negotiates(),
+            StatusError::insufficient_storage(),
+            StatusError::loop_detected(),
+            StatusError::not_extended(),
+            StatusError::network_authentication_required(),
+        ];
+        for StatusError { code, brief, .. } in errors {
+            responses.insert(
+                code.as_str(),
+                Response::new(brief).add_content("application/json", Content::new(StatusError::to_schema(components))),
+            )
+        }
+        responses
+    }
+}
+impl ToResponses for salvo_core::Error {
+    fn to_responses(components: &mut Components) -> Responses {
+        StatusError::to_responses(components)
     }
 }
 

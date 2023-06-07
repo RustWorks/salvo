@@ -2,9 +2,10 @@
 
 use std::any::TypeId;
 
-use salvo_core::writer;
+use salvo_core::http::StatusCode;
+use salvo_core::{prelude::StatusError, writer};
 
-use crate::{Components, Operation, Response, ToResponse, ToSchema};
+use crate::{Components, Operation, Response, ToResponse, ToResponses, ToSchema};
 
 /// Represents an endpoint.
 pub struct Endpoint {
@@ -31,7 +32,7 @@ where
 {
     #[inline]
     fn register(components: &mut Components, operation: &mut Operation) {
-        operation.responses.insert("200", Self::to_response(components))
+        operation.responses.insert("200", Self::to_response(components));
     }
 }
 impl<T, E> EndpointOutRegister for Result<T, E>
@@ -53,6 +54,84 @@ where
     fn register(components: &mut Components, operation: &mut Operation) {
         operation.responses.insert("200", Response::new("Ok"));
         E::register(components, operation);
+    }
+}
+
+impl EndpointOutRegister for StatusError {
+    #[inline]
+    fn register(components: &mut Components, operation: &mut Operation) {
+        operation.responses.append(&mut Self::to_responses(components));
+    }
+}
+impl EndpointOutRegister for StatusCode {
+    #[inline]
+    fn register(components: &mut Components, operation: &mut Operation) {
+        for code in [
+            StatusCode::CONTINUE,
+            StatusCode::SWITCHING_PROTOCOLS,
+            StatusCode::PROCESSING,
+            StatusCode::OK,
+            StatusCode::CREATED,
+            StatusCode::ACCEPTED,
+            StatusCode::NON_AUTHORITATIVE_INFORMATION,
+            StatusCode::NO_CONTENT,
+            StatusCode::RESET_CONTENT,
+            StatusCode::PARTIAL_CONTENT,
+            StatusCode::MULTI_STATUS,
+            StatusCode::ALREADY_REPORTED,
+            StatusCode::IM_USED,
+            StatusCode::MULTIPLE_CHOICES,
+            StatusCode::MOVED_PERMANENTLY,
+            StatusCode::FOUND,
+            StatusCode::SEE_OTHER,
+            StatusCode::NOT_MODIFIED,
+            StatusCode::USE_PROXY,
+            StatusCode::TEMPORARY_REDIRECT,
+            StatusCode::PERMANENT_REDIRECT,
+        ] {
+            operation.responses.insert(
+                code.as_str(),
+                Response::new(
+                    code.canonical_reason()
+                        .unwrap_or("No further explanation is available."),
+                ),
+            )
+        }
+        operation.responses.append(&mut StatusError::to_responses(components));
+    }
+}
+impl EndpointOutRegister for salvo_core::Error {
+    #[inline]
+    fn register(components: &mut Components, operation: &mut Operation) {
+        operation.responses.append(&mut Self::to_responses(components));
+    }
+}
+
+impl EndpointOutRegister for &'static str {
+    #[inline]
+    fn register(components: &mut Components, operation: &mut Operation) {
+        operation.responses.insert(
+            "200",
+            Response::new("Ok").add_content("text/plain", String::to_schema(components)),
+        );
+    }
+}
+impl EndpointOutRegister for String {
+    #[inline]
+    fn register(components: &mut Components, operation: &mut Operation) {
+        operation.responses.insert(
+            "200",
+            Response::new("Ok").add_content("text/plain", String::to_schema(components)),
+        );
+    }
+}
+impl<'a> EndpointOutRegister for &'a String {
+    #[inline]
+    fn register(components: &mut Components, operation: &mut Operation) {
+        operation.responses.insert(
+            "200",
+            Response::new("Ok").add_content("text/plain", String::to_schema(components)),
+        );
     }
 }
 

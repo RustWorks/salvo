@@ -112,17 +112,31 @@ pub struct OpenApi {
 impl OpenApi {
     /// Construct a new [`OpenApi`] object.
     ///
-    /// Function accepts two arguments one which is [`Info`] metadata of the API; two which is [`Paths`]
-    /// containing operations for the API.
+    /// # Examples
+    ///
+    /// ```
+    /// # use salvo_oapi::{Info, Paths, OpenApi};
+    /// #
+    /// let openapi = OpenApi::new("pet api", "0.1.0");
+    /// ```
+    pub fn new(title: impl Into<String>, version: impl Into<String>) -> Self {
+        Self {
+            info: Info::new(title, version),
+            ..Default::default()
+        }
+    }
+    /// Construct a new [`OpenApi`] object.
+    ///
+    /// Function accepts [`Info`] metadata of the API;
     ///
     /// # Examples
     ///
     /// ```
     /// # use salvo_oapi::{Info, Paths, OpenApi};
     /// #
-    /// let openapi = OpenApi::new(Info::new("pet api", "0.1.0"));
+    /// let openapi = OpenApi::new("pet api", "0.1.0");
     /// ```
-    pub fn new(info: Info) -> Self {
+    pub fn with_info(info: Info) -> Self {
         Self {
             info,
             ..Default::default()
@@ -404,6 +418,16 @@ pub enum Required {
     False,
 }
 
+impl From<bool> for Required {
+    fn from(value: bool) -> Self {
+        if value {
+            Self::True
+        } else {
+            Self::False
+        }
+    }
+}
+
 impl Serialize for Required {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -470,7 +494,7 @@ mod tests {
     #[test]
     fn serialize_openapi_json_minimal_success() -> Result<(), serde_json::Error> {
         let raw_json = include_str!("../../testdata/expected_openapi_minimal.json").replace("\r\n", "\n");
-        let openapi = OpenApi::new(
+        let openapi = OpenApi::with_info(
             Info::new("My api", "1.0.0")
                 .description("My api description")
                 .license(License::new("MIT").url("http://mit.licence")),
@@ -486,7 +510,7 @@ mod tests {
 
     #[test]
     fn serialize_openapi_json_with_paths_success() -> Result<(), serde_json::Error> {
-        let openapi = OpenApi::new(Info::new("My big api", "1.1.0")).paths(
+        let openapi = OpenApi::new("My big api", "1.1.0").paths(
             Paths::new()
                 .path(
                     "/api/v1/users",
@@ -523,7 +547,7 @@ mod tests {
 
     #[test]
     fn merge_2_openapi_documents() {
-        let mut api_1 = OpenApi::new(Info::new("Api", "v1")).paths(Paths::new().path(
+        let mut api_1 = OpenApi::new("Api", "v1").paths(Paths::new().path(
             "/api/v1/user",
             PathItem::new(
                 PathItemType::Get,
@@ -531,7 +555,7 @@ mod tests {
             ),
         ));
 
-        let api_2 = OpenApi::new(Info::new("Api", "v2"))
+        let api_2 = OpenApi::new("Api", "v2")
             .paths(
                 Paths::new()
                     .path(

@@ -15,6 +15,13 @@ pub struct Endpoint {
     pub components: Components,
 }
 
+impl Endpoint {
+    /// Create new `Endpoint` with given operation and components.
+    pub fn new(operation: Operation, components: Components) -> Self {
+        Self { operation, components }
+    }
+}
+
 /// A trait for endpoint argument register.
 pub trait EndpointArgRegister {
     /// Modify the OpenApi compontents section or current operation information with given argument. This function is called by macros internal.
@@ -136,6 +143,7 @@ impl<'a> EndpointOutRegister for &'a String {
 }
 
 /// A components for all endpoints.
+#[non_exhaustive]
 pub struct EndpointRegistry {
     /// The type id of the endpoint.
     pub type_id: fn() -> TypeId,

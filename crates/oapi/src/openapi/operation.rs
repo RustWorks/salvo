@@ -78,6 +78,7 @@ impl Operations {
 /// Implements [OpenAPI Operation Object][operation] object.
 ///
 /// [operation]: https://spec.openapis.org/oas/latest.html#operation-object
+#[non_exhaustive]
 #[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Operation {
@@ -259,6 +260,14 @@ impl Operation {
     pub fn add_server(mut self, server: Server) -> Self {
         self.servers.insert(server);
         self
+    }
+
+    /// For easy chaining of operations.
+    pub fn then<F>(self, func: F) -> Self
+    where
+        F: FnOnce(Self) -> Self,
+    {
+        func(self)
     }
 }
 

@@ -4,8 +4,8 @@ use proc_macro2::{Span, TokenStream};
 use proc_macro_error::abort;
 use quote::{quote, ToTokens};
 use syn::{
-    parse::Parse, punctuated::Punctuated, token::Comma, Attribute, Data, Field, GenericParam, Generics, Ident,
-    Lifetime, LifetimeParam,
+    parse::Parse, punctuated::Punctuated, Attribute, Data, Field, GenericParam, Generics, Ident, Lifetime,
+    LifetimeParam, Token,
 };
 
 use crate::component::{self, ComponentSchema};
@@ -116,19 +116,13 @@ impl ToTokens for ToParameters {
             } else if let Some(name) = names.as_ref().and_then(|names|names.get(index)) {
                 name.to_string()
             } else {
-                abort! {
+                abort!{
                     field,
                     "tuple structs are not supported";
                     help = "consider using a struct with named fields instead, or use `#[salvo(parameters(names(\"...\")))]` to specify a name for each field",
                 }
             };
-            quote!{ #salvo::extract::metadata::Field{
-                name: #name,
-                sources: vec![],
-                aliases: vec![],
-                metadata: None,
-                rename: None,
-            }}
+            quote!{ #salvo::extract::metadata::Field::new(#name)}
         })
         .collect::<Vec<_>>();
         let params = self
@@ -196,12 +190,12 @@ impl ToTokens for ToParameters {
             impl #de_impl_generics #salvo::Extractible<'__de> for #ident #ty_generics #where_clause {
                 fn metadata() -> &'__de #salvo::extract::Metadata {
                     static METADATA: #salvo::__private::once_cell::sync::OnceCell<#salvo::extract::Metadata> = #salvo::__private::once_cell::sync::OnceCell::new();
-                    METADATA.get_or_init(|| #salvo::extract::Metadata {
-                        name: #name,
-                        default_sources: vec![#default_source],
-                        fields: vec![#(#fields),*],
-                        rename_all: #rename_all,
-                    })
+                    METADATA.get_or_init(||
+                        #salvo::extract::Metadata::new(#name)
+                            .default_sources(vec![#default_source])
+                            .fields(vec![#(#fields),*])
+                            .rename_all(#rename_all)
+                    )
                 }
                 async fn extract(req: &'__de mut #salvo::Request) -> Result<Self, #salvo::http::ParseError> {
                     #salvo::serde::from_request(req, Self::metadata()).await
@@ -247,7 +241,7 @@ impl ToParameters {
 
     fn validate_unnamed_field_names(
         &self,
-        unnamed_fields: &Punctuated<Field, Comma>,
+        unnamed_fields: &Punctuated<Field, Token![,]>,
         field_names: &Option<&Vec<String>>,
     ) {
         let ident = &self.ident;

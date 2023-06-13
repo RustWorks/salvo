@@ -6,16 +6,11 @@ use self::models::*;
 
 static STORE: Lazy<Db> = Lazy::new(new_store);
 
-#[handler]
-async fn hello(res: &mut Response) {
-    res.render("Hello");
-}
-
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt().init();
 
-    let router = Router::new().get(hello).push(
+    let router = Router::new().push(
         Router::with_path("api").push(
             Router::with_path("todos")
                 .get(list_todos)
@@ -28,14 +23,18 @@ async fn main() {
 
     let router = router
         .push(doc.into_router("/api-doc/openapi.json"))
-        .push(SwaggerUi::new("/api-doc/openapi.json").into_router("swagger-ui"));
+        .push(SwaggerUi::new("/api-doc/openapi.json").into_router("/"));
 
     let acceptor = TcpListener::new("127.0.0.1:5800").bind().await;
     Server::new(acceptor).serve(router).await;
 }
 
 /// List todos.
-#[endpoint]
+#[endpoint(
+    parameters(
+        ("offset", description = "Offset is an optional query paramter."),
+    )
+)]
 pub async fn list_todos(offset: QueryParam<usize, false>, limit: QueryParam<usize, false>) -> Json<Vec<Todo>> {
     let todos = STORE.lock().await;
     let todos: Vec<Todo> = todos

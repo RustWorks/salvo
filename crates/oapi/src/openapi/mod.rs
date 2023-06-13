@@ -281,6 +281,7 @@ impl OpenApi {
                 let Endpoint {
                     operation,
                     mut components,
+                    ..
                 } = (creator)();
                 let methods = if let Some(method) = &node.method {
                     vec![*method]
@@ -414,8 +415,10 @@ pub enum Required {
     /// Is required.
     True,
     /// Is not required.
-    #[default]
     False,
+    /// This value is not set, it will treat as `False` when serialize to boolean.
+    #[default]
+    Unset,
 }
 
 impl From<bool> for Required {

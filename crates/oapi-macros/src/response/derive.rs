@@ -6,8 +6,7 @@ use proc_macro_error::{abort, emit_error};
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
-use syn::{Attribute, Data, Field, Fields, Generics, LitStr, Meta, Path, Type, TypePath, Variant};
+use syn::{Attribute, Data, Field, Fields, Generics, LitStr, Meta, Path, Token, Type, TypePath, Variant};
 
 use crate::doc_comment::CommentAttributes;
 use crate::operation::{InlineType, PathType};
@@ -90,23 +89,23 @@ impl ToTokens for ToResponses {
             Data::Struct(struct_value) => match &struct_value.fields {
                 Fields::Named(fields) => {
                     let response = NamedStructResponse::new(&self.attributes, &self.ident, &fields.named).0;
-                    let status = &response.status_code;
+                    let status_code = &response.status_code;
 
-                    Array::from_iter(iter::once(quote!((#status, #response))))
+                    Array::from_iter(iter::once(quote!((#status_code, #response))))
                 }
                 Fields::Unnamed(fields) => {
                     let field = fields.unnamed.iter().next().expect("Unnamed struct must have 1 field");
 
                     let response = UnnamedStructResponse::new(&self.attributes, &field.ty, &field.attrs).0;
-                    let status = &response.status_code;
+                    let status_code = &response.status_code;
 
-                    Array::from_iter(iter::once(quote!((#status, #response))))
+                    Array::from_iter(iter::once(quote!((#status_code, #response))))
                 }
                 Fields::Unit => {
                     let response = UnitStructResponse::new(&self.attributes).0;
-                    let status = &response.status_code;
+                    let status_code = &response.status_code;
 
-                    Array::from_iter(iter::once(quote!((#status, #response))))
+                    Array::from_iter(iter::once(quote!((#status_code, #response))))
                 }
             },
             Data::Enum(enum_value) => enum_value
@@ -125,8 +124,8 @@ impl ToTokens for ToResponses {
                     Fields::Unit => UnitStructResponse::new(&variant.attrs).0,
                 })
                 .map(|response| {
-                    let status = &response.status_code;
-                    quote!((#status, #oapi::oapi::RefOr::from(#response)))
+                    let status_code = &response.status_code;
+                    quote!((#status_code, #oapi::oapi::RefOr::from(#response)))
                 })
                 .collect::<Array<TokenStream>>(),
             Data::Union(_) => abort!(self.ident, "`ToResponses` does not support `Union` type"),
@@ -166,7 +165,7 @@ trait Response {
         const ERROR: &str = "Unexpected field attribute, field attributes are only supported at unnamed fields";
 
         if let Some(metas) = attribute::find_nested_list(attr, "response").ok().flatten() {
-            if let Ok(metas) = metas.parse_args_with(Punctuated::<Meta, Comma>::parse_terminated) {
+            if let Ok(metas) = metas.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
                 for meta in metas {
                     if meta.path().is_ident("symbol") || meta.path().is_ident("content") {
                         return (false, ERROR);
@@ -207,7 +206,7 @@ impl<'u> UnnamedStructResponse<'u> {
         let mut derive_value = DeriveToResponsesValue::from_attributes(attributes)
             .expect("`ToResponses` must have `#[salvo(response(...))]` attribute");
         let description = CommentAttributes::from_attributes(attributes).as_formatted_string();
-        let status_code = mem::take(&mut derive_value.status);
+        let status_code = mem::take(&mut derive_value.status_code);
         Self(
             (
                 status_code,
@@ -228,7 +227,7 @@ struct NamedStructResponse<'n>(ResponseTuple<'n>);
 impl Response for NamedStructResponse<'_> {}
 
 impl NamedStructResponse<'_> {
-    fn new(attributes: &[Attribute], ident: &Ident, fields: &Punctuated<Field, Comma>) -> Self {
+    fn new(attributes: &[Attribute], ident: &Ident, fields: &Punctuated<Field, Token![,]>) -> Self {
         Self::validate_attributes(attributes, Self::has_no_field_attributes);
         Self::validate_attributes(
             fields.iter().flat_map(|field| &field.attrs),
@@ -238,7 +237,7 @@ impl NamedStructResponse<'_> {
         let mut derive_value = DeriveToResponsesValue::from_attributes(attributes)
             .expect("`ToResponses` must have `#[salvo(response(...))]` attribute");
         let description = CommentAttributes::from_attributes(attributes).as_formatted_string();
-        let status_code = mem::take(&mut derive_value.status);
+        let status_code = mem::take(&mut derive_value.status_code);
 
         let inline_schema = NamedStructSchema {
             attributes,
@@ -274,7 +273,7 @@ impl UnitStructResponse<'_> {
 
         let mut derive_value = DeriveToResponsesValue::from_attributes(attributes)
             .expect("`ToResponses` must have `#[salvo(response(...))]` attribute");
-        let status_code = mem::take(&mut derive_value.status);
+        let status_code = mem::take(&mut derive_value.status_code);
         let description = CommentAttributes::from_attributes(attributes).as_formatted_string();
 
         Self(
@@ -292,7 +291,7 @@ struct ToResponseNamedStructResponse<'p>(ResponseTuple<'p>);
 impl Response for ToResponseNamedStructResponse<'_> {}
 
 impl<'p> ToResponseNamedStructResponse<'p> {
-    fn new(attributes: &[Attribute], ident: &Ident, fields: &Punctuated<Field, Comma>) -> Self {
+    fn new(attributes: &[Attribute], ident: &Ident, fields: &Punctuated<Field, Token![,]>) -> Self {
         Self::validate_attributes(attributes, Self::has_no_field_attributes);
         Self::validate_attributes(
             fields.iter().flat_map(|field| &field.attrs),
@@ -375,7 +374,7 @@ struct EnumResponse<'r>(ResponseTuple<'r>);
 impl Response for EnumResponse<'_> {}
 
 impl<'r> EnumResponse<'r> {
-    fn new(ident: &Ident, variants: &'r Punctuated<Variant, Comma>, attributes: &[Attribute]) -> Self {
+    fn new(ident: &Ident, variants: &'r Punctuated<Variant, Token![,]>, attributes: &[Attribute]) -> Self {
         Self::validate_attributes(attributes, Self::has_no_field_attributes);
         Self::validate_attributes(
             variants.iter().flat_map(|variant| &variant.attrs),
@@ -389,7 +388,7 @@ impl<'r> EnumResponse<'r> {
             .into_iter()
             .map(Self::parse_variant_attributes)
             .filter_map(Self::to_content);
-        let contents: Punctuated<Content, Comma> = Punctuated::from_iter(variants_content);
+        let contents: Punctuated<Content, Token![,]> = Punctuated::from_iter(variants_content);
 
         let derive_value = DeriveToResponseValue::from_attributes(attributes);
         if let Some(derive_value) = &derive_value {

@@ -2,7 +2,7 @@ use std::{borrow::Cow, fmt::Display};
 
 use proc_macro2::{Ident, Span, TokenStream};
 use proc_macro_error::abort;
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{quote, ToTokens};
 use syn::{
     parenthesized,
     parse::{Parse, ParseBuffer, ParseStream},
@@ -29,8 +29,8 @@ use crate::{
 ///
 /// Parse is executed for following formats:
 ///
-/// * ("id" = String, path, deprecated, description = "Users database id"),
-/// * ("id", path, deprecated, description = "Users database id"),
+/// * ("id" = String, Path, deprecated, description = "Users database id"),
+/// * ("id", Path, deprecated, description = "Users database id"),
 ///
 /// The `= String` type statement is optional if automatic resolution is supported.
 #[derive(Debug)]
@@ -54,16 +54,28 @@ impl ToTokens for Parameter<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let oapi = crate::oapi_crate();
         match self {
-            Parameter::Value(parameter) => tokens.extend(quote! { .add_parameter(#parameter) }),
-            Parameter::Struct(StructParameter { path }) => {
-                let last_ident = &path.path.segments.last().unwrap().ident;
-
-                tokens.extend(quote_spanned! {last_ident.span()=>
-                    .parameters(
-                        <#path as #oapi::oapi::ToParameters>::to_parameters(components).into_iter()
-                    )
-                })
+            Parameter::Value(parameter) => {
+                if parameter.parameter_in.is_none() {
+                    tokens.extend(quote! {
+                        {
+                            let mut new_parameter = #parameter;
+                            if let Some(exist_parameter) = operation.parameters.0.iter_mut().find(|p|p.name == new_parameter.name) {
+                                new_parameter.parameter_in = exist_parameter.parameter_in.clone();
+                                exist_parameter.merge(new_parameter);
+                            } else {
+                                operation.parameters.insert(new_parameter);
+                            }
+                        }
+                    });
+                } else {
+                    tokens.extend(quote! { operation.parameters.insert(#parameter); })
+                }
             }
+            Parameter::Struct(StructParameter { path }) => tokens.extend(quote! {
+                operation.parameters.extend(
+                    <#path as #oapi::oapi::ToParameters>::to_parameters(components)
+                );
+            }),
         }
     }
 }
@@ -112,7 +124,7 @@ enum ParameterType<'p> {
 #[derive(Default, Debug)]
 pub(crate) struct ValueParameter<'a> {
     pub(crate) name: Cow<'a, str>,
-    parameter_in: ParameterIn,
+    parameter_in: Option<ParameterIn>,
     parameter_schema: Option<ParameterSchema<'a>>,
     features: (Vec<Feature>, Vec<Feature>),
 }
@@ -149,7 +161,7 @@ impl Parse for ValueParameter<'_> {
         input.parse::<Token![,]>()?;
 
         if input.fork().parse::<ParameterIn>().is_ok() {
-            parameter.parameter_in = input.parse()?;
+            parameter.parameter_in = Some(input.parse()?);
             input.parse::<Token![,]>()?;
         }
 
@@ -170,7 +182,7 @@ struct ParameterFeatures(Vec<Feature>);
 impl Parse for ParameterFeatures {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         Ok(Self(parse_features!(
-            // param features
+            // parameter features
             input as Style,
             Explode,
             AllowReserved,
@@ -244,13 +256,12 @@ impl ToTokens for ValueParameter<'_> {
         tokens.extend(quote! {
             #oapi::oapi::parameter::Parameter::from(#oapi::oapi::parameter::Parameter::new(#name))
         });
-        let parameter_in = &self.parameter_in;
-        tokens.extend(quote! { .parameter_in(#parameter_in) });
+        if let Some(parameter_in) = &self.parameter_in {
+            tokens.extend(quote! { .parameter_in(#parameter_in) });
+        }
 
         let (schema_features, param_features) = &self.features;
-
         tokens.extend(param_features.to_token_stream());
-
         if !schema_features.is_empty() && self.parameter_schema.is_none() {
             abort!(
                 Span::call_site(),
@@ -294,12 +305,6 @@ impl Display for ParameterIn {
     }
 }
 
-impl Default for ParameterIn {
-    fn default() -> Self {
-        Self::Path
-    }
-}
-
 impl Parse for ParameterIn {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         fn expected_style() -> String {
@@ -311,12 +316,11 @@ impl Parse for ParameterIn {
             format!("unexpected in, expected one of: {variants}")
         }
         let style = input.parse::<Ident>()?;
-
-        match &*style.to_string() {
-            "Path" => Ok(Self::Path),
-            "Query" => Ok(Self::Query),
-            "Header" => Ok(Self::Header),
-            "Cookie" => Ok(Self::Cookie),
+        match &*style.to_string().to_lowercase() {
+            "path" => Ok(Self::Path),
+            "query" => Ok(Self::Query),
+            "header" => Ok(Self::Header),
+            "cookie" => Ok(Self::Cookie),
             _ => Err(Error::new(style.span(), expected_style())),
         }
     }

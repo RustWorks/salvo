@@ -40,8 +40,9 @@ eyre = "0.6"
 fastrand = "2"
 form_urlencoded = "1"
 futures-util = "0.3"
-h3 = { version = "0.0.2", default-features = false }
-h3-quinn = { version = "0.0.3", default-features = false }
+h3 = { git = "https://github.com/chrislearn/h3.git", branch = "webtransport", default-features = false }
+h3-quinn = { git = "https://github.com/chrislearn/h3.git", branch = "webtransport",  default-features = false }
+h3-webtransport = { git = "https://github.com/chrislearn/h3.git", branch = "webtransport", default-features = false }
 headers = "0.3"
 http = "0.2"
 http-body-util = "0.1.0-rc.2"                                                                       #{ git = "https://github.com/hyperium/http-body", rev = "0e20ca9" }
@@ -74,14 +75,14 @@ proc-macro-error = "1"
 proc-macro2 = "1"
 quinn = { version = "0.10", default-features = false }
 rand = "0.8"
-rcgen = "0.10"
+rcgen = "0.11"
 regex = "1"
 ring = "0.16"
 rustls = "0.21.1"
 rustls-pemfile = "1.0"
 rust-embed = "6"
-salvo-rustls = "0.0.2"
-salvo-utils = "0.0.2"
+salvo-rustls = "0.0.3"
+salvo-utils = "0.0.3"
 salvo_macros = { version = "0.44.2", path = "crates/macros", default-features = false }
 salvo_core = { version = "0.44.2", path = "crates/core", default-features = false }
 salvo_extra = { version = "0.44.2", path = "crates/extra", default-features = false }

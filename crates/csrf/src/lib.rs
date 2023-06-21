@@ -19,10 +19,8 @@ use std::error::Error as StdError;
 
 mod finder;
 
-pub use finder::{CsrfTokenFinder, FormFinder, HeaderFinder, JsonFinder, QueryFinder};
+pub use finder::{CsrfTokenFinder, FormFinder, HeaderFinder, JsonFinder};
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::engine::Engine;
 use rand::distributions::Standard;
 use rand::Rng;
 use salvo_core::handler::Skipper;
@@ -165,29 +163,30 @@ fn default_skipper(req: &mut Request, _depot: &Depot) -> bool {
     ![Method::POST, Method::PATCH, Method::DELETE, Method::PUT].contains(req.method())
 }
 
-/// Store secret.
+/// Store proof.
 #[async_trait]
 pub trait CsrfStore: Send + Sync + 'static {
     /// Error type for CsrfStore.
     type Error: StdError + Send + Sync + 'static;
-    /// Get the secret from the store.
-    async fn load_secret(&self, req: &mut Request, depot: &mut Depot) -> Option<Vec<u8>>;
-    /// Save the secret from the store.
-    async fn save_secret(
+    /// Get the proof from the store.
+    async fn load<C: CsrfCipher>(&self, req: &mut Request, depot: &mut Depot, cipher: &C) -> Option<(String, String)>;
+    /// Save the proof from the store.
+    async fn save(
         &self,
         req: &mut Request,
         depot: &mut Depot,
         res: &mut Response,
-        secret: &[u8],
+        token: &str,
+        proof: &str,
     ) -> Result<(), Self::Error>;
 }
 
-/// Generate secret and token and valid token.
+/// Generate token and proof and valid token.
 pub trait CsrfCipher: Send + Sync + 'static {
     /// Verify token is valid.
-    fn verify(&self, token: &[u8], secret: &[u8]) -> bool;
-    /// Generate new secret and token.
-    fn generate(&self) -> (Vec<u8>, Vec<u8>);
+    fn verify(&self, token: &str, proof: &str) -> bool;
+    /// Generate new token and proof.
+    fn generate(&self) -> (String, String);
 
     /// Generate a random bytes.
     fn random_bytes(&self, len: usize) -> Vec<u8> {
@@ -214,7 +213,6 @@ pub struct Csrf<C, S> {
     store: S,
     skipper: Box<dyn Skipper>,
     finders: Vec<Box<dyn CsrfTokenFinder>>,
-    fallback_ciphers: Vec<Box<dyn CsrfCipher>>,
 }
 
 impl<C: CsrfCipher, S: CsrfStore> Csrf<C, S> {
@@ -226,7 +224,6 @@ impl<C: CsrfCipher, S: CsrfStore> Csrf<C, S> {
             store,
             skipper: Box::new(default_skipper),
             finders: vec![Box::new(finder)],
-            fallback_ciphers: vec![],
         }
     }
 
@@ -234,12 +231,6 @@ impl<C: CsrfCipher, S: CsrfStore> Csrf<C, S> {
     #[inline]
     pub fn add_finder(mut self, finder: impl CsrfTokenFinder) -> Self {
         self.finders.push(Box::new(finder));
-        self
-    }
-    /// Add finder to find csrf token.
-    #[inline]
-    pub fn add_fallabck_cipher(mut self, cipher: impl CsrfCipher) -> Self {
-        self.fallback_ciphers.push(Box::new(cipher));
         self
     }
 
@@ -270,29 +261,20 @@ impl<C: CsrfCipher, S: CsrfStore> Csrf<C, S> {
 #[async_trait]
 impl<C: CsrfCipher, S: CsrfStore> Handler for Csrf<C, S> {
     async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
-        if !self.skipper.skipped(req, depot) {
-            if let Some(token) = &self.find_token(req).await {
-                tracing::debug!("csrf token: {:?}", token);
-                if let Ok(token) = URL_SAFE_NO_PAD.decode(token) {
-                    if let Some(secret) = self.store.load_secret(req, depot).await {
-                        let mut valid = self.cipher.verify(&token, &secret);
-                        if !valid && self.fallback_ciphers.is_empty() {
-                            tracing::debug!("try to use fallback ciphers to verify CSRF token");
-                            for cipher in &self.fallback_ciphers {
-                                if cipher.verify(&token, &secret) {
-                                    tracing::debug!("fallback cipher verify CSRF token success");
-                                    valid = true;
-                                    break;
-                                }
-                            }
-                        } else {
-                            tracing::debug!("cipher verify CSRF token success");
-                        }
-                        if !valid {
+        match self.store.load(req, depot, &self.cipher).await {
+            Some((token, proof)) => {
+                depot.insert(CSRF_TOKEN_KEY, token);
+
+                if !self.skipper.skipped(req, depot) {
+                    if let Some(token) = &self.find_token(req).await {
+                        tracing::debug!("csrf token: {token}");
+                        if !self.cipher.verify(&token, &proof) {
                             tracing::debug!("rejecting request due to invalid or expired CSRF token");
                             res.status_code(StatusCode::FORBIDDEN);
                             ctrl.skip_rest();
                             return;
+                        } else {
+                            tracing::debug!("cipher verify CSRF token success");
                         }
                     } else {
                         tracing::debug!("rejecting request due to missing CSRF token",);
@@ -300,27 +282,25 @@ impl<C: CsrfCipher, S: CsrfStore> Handler for Csrf<C, S> {
                         ctrl.skip_rest();
                         return;
                     }
-                } else {
-                    tracing::debug!("rejecting request due to decode token failed",);
+                }
+                ctrl.call_next(req, depot, res).await;
+            }
+            None => {
+                if !self.skipper.skipped(req, depot) {
+                    tracing::debug!("rejecting request due to missing CSRF token",);
                     res.status_code(StatusCode::FORBIDDEN);
                     ctrl.skip_rest();
-                    return;
+                } else {
+                    let (token, proof) = self.cipher.generate();
+                    if let Err(e) = self.store.save(req, depot, res, &token, &proof).await {
+                        tracing::error!(error = ?e, "salvo csrf token failed");
+                    }
+                    tracing::debug!("new token: {:?}", token);
+                    depot.insert(CSRF_TOKEN_KEY, token);
+                    ctrl.call_next(req, depot, res).await;
                 }
-            } else {
-                tracing::debug!("rejecting request due to missing CSRF cookie",);
-                res.status_code(StatusCode::FORBIDDEN);
-                ctrl.skip_rest();
-                return;
             }
         }
-        let (token, secret) = self.cipher.generate();
-        if let Err(e) = self.store.save_secret(req, depot, res, &secret).await {
-            tracing::error!(error = ?e, "salvo csrf token failed");
-        }
-        let token = URL_SAFE_NO_PAD.encode(&token);
-        tracing::debug!("new token: {:?}", token);
-        depot.insert(CSRF_TOKEN_KEY, token);
-        ctrl.call_next(req, depot, res).await;
     }
 }
 
@@ -364,7 +344,7 @@ mod tests {
 
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
         assert_ne!(res.take_string().await.unwrap(), "");
-        assert_ne!(res.cookie("salvo.csrf.secret"), None);
+        assert_ne!(res.cookie("salvo.csrf"), None);
     }
 
     #[tokio::test]
@@ -381,7 +361,7 @@ mod tests {
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
 
         let csrf_token = res.take_string().await.unwrap();
-        let cookie = res.cookie("salvo.csrf.secret").unwrap();
+        let cookie = res.cookie("salvo.csrf").unwrap();
 
         let res = TestClient::post("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
@@ -409,7 +389,7 @@ mod tests {
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
 
         let csrf_token = res.take_string().await.unwrap();
-        let cookie = res.cookie("salvo.csrf.secret").unwrap();
+        let cookie = res.cookie("salvo.csrf").unwrap();
 
         let res = TestClient::post("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
@@ -425,7 +405,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validates_token_in_query() {
-        let csrf = Csrf::new(BcryptCipher::new(), CookieStore::new(), QueryFinder::new());
+        let csrf = Csrf::new(BcryptCipher::new(), CookieStore::new(), HeaderFinder::new("csrf-token"));
         let router = Router::new().hoop(csrf).get(get_index).post(post_index);
         let service = Service::new(router);
 
@@ -433,12 +413,13 @@ mod tests {
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
 
         let csrf_token = res.take_string().await.unwrap();
-        let cookie = res.cookie("salvo.csrf.secret").unwrap();
+        let cookie = res.cookie("salvo.csrf").unwrap();
 
         let res = TestClient::post("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
 
-        let mut res = TestClient::post(format!("http://127.0.0.1:5801?a=1&csrf-token={}&b=2", csrf_token))
+        let mut res = TestClient::post("http://127.0.0.1:5801?a=1&b=2")
+            .add_header("csrf-token", csrf_token, true)
             .add_header("cookie", cookie.to_string(), true)
             .send(&service)
             .await;
@@ -451,7 +432,7 @@ mod tests {
         let csrf = Csrf::new(
             HmacCipher::new(*b"01234567012345670123456701234567"),
             CookieStore::new(),
-            QueryFinder::new().with_query_name("my-csrf-token"),
+            HeaderFinder::new("my-csrf-token"),
         );
         let router = Router::new().hoop(csrf).get(get_index).post(post_index);
         let service = Service::new(router);
@@ -460,12 +441,13 @@ mod tests {
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
 
         let csrf_token = res.take_string().await.unwrap();
-        let cookie = res.cookie("salvo.csrf.secret").unwrap();
+        let cookie = res.cookie("salvo.csrf").unwrap();
 
         let res = TestClient::post("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
 
-        let mut res = TestClient::post(format!("http://127.0.0.1:5801?a=1&my-csrf-token={}&b=2", csrf_token))
+        let mut res = TestClient::post("http://127.0.0.1:5801?a=1&b=2")
+            .add_header("my-csrf-token", csrf_token, true)
             .add_header("cookie", cookie.to_string(), true)
             .send(&service)
             .await;
@@ -488,7 +470,7 @@ mod tests {
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
 
         let csrf_token = res.take_string().await.unwrap();
-        let cookie = res.cookie("salvo.csrf.secret").unwrap();
+        let cookie = res.cookie("salvo.csrf").unwrap();
 
         let res = TestClient::post("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
@@ -515,7 +497,7 @@ mod tests {
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
 
         let csrf_token = res.take_string().await.unwrap();
-        let cookie = res.cookie("salvo.csrf.secret").unwrap();
+        let cookie = res.cookie("salvo.csrf").unwrap();
 
         let res = TestClient::post("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
@@ -541,14 +523,14 @@ mod tests {
         let res = TestClient::get("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
 
-        let cookie = res.cookie("salvo.csrf.secret").unwrap();
+        let cookie = res.cookie("salvo.csrf").unwrap();
 
         let res = TestClient::post("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
 
         let res = TestClient::post("http://127.0.0.1:5801")
             .add_header("x-csrf-token", "aGVsbG8=", true)
-            .add_header("cookie", cookie.to_string(), true)
+            .add_header("cookie", cookie.to_string().split_once('.').unwrap().0, true)
             .send(&service)
             .await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
@@ -567,14 +549,14 @@ mod tests {
         let res = TestClient::get("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
 
-        let cookie = res.cookie("salvo.csrf.secret").unwrap();
+        let cookie = res.cookie("salvo.csrf").unwrap();
 
         let res = TestClient::post("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
 
         let res = TestClient::post("http://127.0.0.1:5801")
             .add_header("x-csrf-token", "aGVsbG8", true)
-            .add_header("cookie", cookie.to_string(), true)
+            .add_header("cookie", cookie.to_string().split_once('.').unwrap().0, true)
             .send(&service)
             .await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
@@ -596,14 +578,14 @@ mod tests {
 
         let res = TestClient::get("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::OK);
-        let cookie = res.cookie("salvo.csrf.secret").unwrap();
+        let cookie = res.cookie("salvo.csrf").unwrap();
 
         let res = TestClient::post("http://127.0.0.1:5801").send(&service).await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);
 
         let res = TestClient::post("http://127.0.0.1:5801")
             .add_header("x-csrf-token", csrf_token, true)
-            .add_header("cookie", cookie.to_string(), true)
+            .add_header("cookie", cookie.to_string().split_once('.').unwrap().0, true)
             .send(&service)
             .await;
         assert_eq!(res.status_code.unwrap(), StatusCode::FORBIDDEN);

@@ -45,7 +45,7 @@ mod xml;
 
 use crate::{router::NormNode, Endpoint};
 
-static PARAMETER_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r#"\{([^]]+)\}"#).unwrap());
+static PATH_PARAMETER_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r#"\{([^}:]+)"#).unwrap());
 
 /// Root object of the OpenAPI document.
 ///
@@ -266,16 +266,16 @@ impl OpenApi {
         }
 
         let path = join_path(base_path, node.path.as_deref().unwrap_or_default());
-        let parameter_names = PARAMETER_NAME_REGEX
-            .captures(&path)
-            .map(|captures| {
+        let path_parameter_names = PATH_PARAMETER_NAME_REGEX
+            .captures_iter(&path)
+            .filter_map(|captures| {
                 captures
                     .iter()
                     .skip(1)
                     .map(|capture| capture.unwrap().as_str().to_owned())
-                    .collect::<Vec<_>>()
+                    .next()
             })
-            .unwrap_or_default();
+            .collect::<Vec<_>>();
         if let Some(type_id) = &node.type_id {
             if let Some(creator) = crate::EndpointRegistry::find(type_id) {
                 let Endpoint {
@@ -293,12 +293,27 @@ impl OpenApi {
                         PathItemType::Patch,
                     ]
                 };
-                let not_exist_parameters = parameter_names
+                let not_exist_parameters = operation
+                    .parameters
+                    .0
                     .iter()
-                    .filter(|name| !operation.parameters.0.iter().any(|parameter| parameter.name == **name))
+                    .filter(|p| p.parameter_in == ParameterIn::Path && !path_parameter_names.contains(&p.name))
+                    .map(|p| &p.name)
                     .collect::<Vec<_>>();
                 if !not_exist_parameters.is_empty() {
-                    tracing::warn!(parameters = ?not_exist_parameters, path, "parameters not found in operation");
+                    tracing::warn!(parameters = ?not_exist_parameters, path, "information for not exist parameters");
+                }
+                let meta_not_exist_parameters = path_parameter_names
+                    .iter()
+                    .filter(|name| {
+                        !name.starts_with("*")
+                            && !operation.parameters.0.iter().any(|parameter| {
+                                parameter.name == **name && parameter.parameter_in == ParameterIn::Path
+                            })
+                    })
+                    .collect::<Vec<_>>();
+                if !meta_not_exist_parameters.is_empty() {
+                    tracing::warn!(parameters = ?meta_not_exist_parameters, path, "parameters information not provided");
                 }
                 let path_item = self.paths.entry(path.clone()).or_default();
                 for method in methods {

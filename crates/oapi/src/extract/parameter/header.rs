@@ -82,6 +82,14 @@ where
         self.0.fmt(f)
     }
 }
+impl<T> fmt::Display for HeaderParam<T, true>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.0.as_ref().unwrap().fmt(f)
+    }
+}
 
 #[async_trait]
 impl<'de, T> Extractible<'de> for HeaderParam<T, true>
@@ -124,11 +132,17 @@ where
     T: ToSchema,
 {
     fn register(components: &mut Components, operation: &mut Operation, arg: &str) {
-        let parameter = Parameter::new(arg)
+        let parameter = Parameter::new(arg.trim_start_matches('_'))
             .parameter_in(ParameterIn::Header)
             .description(format!("Get parameter `{arg}` from request headers."))
             .schema(T::to_schema(components))
             .required(R);
-        operation.parameters.insert(parameter);
+        if arg.starts_with('_') {
+            if !operation.parameters.contains(&parameter.name, parameter.parameter_in) {
+                operation.parameters.insert(parameter);
+            }
+        } else {
+            operation.parameters.insert(parameter);
+        }
     }
 }

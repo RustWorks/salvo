@@ -2,6 +2,7 @@
 use std::collections::VecDeque;
 use std::error::Error as StdError;
 use std::fmt::{self, Display, Formatter};
+use std::path::PathBuf;
 
 #[cfg(feature = "cookie")]
 use cookie::{Cookie, CookieJar};
@@ -12,7 +13,8 @@ use http::version::Version;
 use http::Extensions;
 use mime::Mime;
 
-use crate::http::StatusCode;
+use crate::fs::NamedFile;
+use crate::http::{StatusCode, StatusError};
 use crate::{Error, Piece};
 use bytes::Bytes;
 
@@ -324,25 +326,6 @@ impl Response {
         piece.render(self);
     }
 
-    /// Renders content and returns `&mut Self`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use salvo_core::http::{Response, StatusCode};
-    ///
-    /// let mut res = Response::new();
-    /// res.with_render("hello world");
-    /// ```
-    #[inline]
-    pub fn with_render<P>(&mut self, piece: P) -> &mut Self
-    where
-        P: Piece,
-    {
-        self.render(piece);
-        self
-    }
-
     /// Render content with status code.
     #[inline]
     pub fn stuff<P>(&mut self, code: StatusCode, piece: P)
@@ -352,14 +335,24 @@ impl Response {
         self.status_code = Some(code);
         piece.render(self);
     }
-    /// Render content with status code.
+
+    /// Attempts to send a file. If file not exists, not found error will occur.
+    ///
+    /// If you want more settings, you can use `NamedFile::builder` to create a new [`NamedFileBuilder`](crate::fs::NamedFileBuilder).      
     #[inline]
-    pub fn with_stuff<P>(&mut self, code: StatusCode, piece: P) -> &mut Self
+    pub async fn send_file<P>(&mut self, path: P, req_headers: &HeaderMap)
     where
-        P: Piece,
+        P: Into<PathBuf> + Send,
     {
-        self.stuff(code, piece);
-        self
+        let path = path.into();
+        if !path.exists() {
+            self.render(StatusError::not_found());
+        } else {
+            match NamedFile::builder(path).build().await {
+                Ok(file) => file.send(req_headers, self).await,
+                Err(_) => self.render(StatusError::internal_server_error()),
+            }
+        }
     }
 
     /// Write bytes data to body. If body is none, a new `ResBody` will created.

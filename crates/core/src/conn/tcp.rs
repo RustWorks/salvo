@@ -1,13 +1,12 @@
 //! TcpListener and it's implements.
-use std::io::{Error as IoError, Result as IoResult};
+use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 use std::sync::Arc;
 use std::vec;
 
 use tokio::net::{TcpListener as TokioTcpListener, TcpStream, ToSocketAddrs};
 
 use crate::async_trait;
-use crate::conn::Holding;
-use crate::conn::HttpBuilders;
+use crate::conn::{Holding, HttpBuilder};
 use crate::http::uri::Scheme;
 use crate::http::{HttpConnection, Version};
 use crate::service::HyperHandler;
@@ -115,7 +114,7 @@ impl TryFrom<TokioTcpListener> for TcpAcceptor {
     fn try_from(inner: TokioTcpListener) -> Result<Self, Self::Error> {
         let holding = Holding {
             local_addr: inner.local_addr()?.into(),
-            http_version: Version::HTTP_11,
+            http_versions: vec![Version::HTTP_11],
             http_scheme: Scheme::HTTP,
         };
 
@@ -128,23 +127,11 @@ impl TryFrom<TokioTcpListener> for TcpAcceptor {
 
 #[async_trait]
 impl HttpConnection for TcpStream {
-    async fn version(&mut self) -> Option<Version> {
-        Some(Version::HTTP_11)
-    }
-    async fn serve(self, handler: HyperHandler, builders: Arc<HttpBuilders>) -> IoResult<()> {
-        #[cfg(not(feature = "http1"))]
-        {
-            let _ = handler;
-            let _ = builders;
-            panic!("http1 feature is required");
-        }
-        #[cfg(feature = "http1")]
-        builders
-            .http1
+    async fn serve(self, handler: HyperHandler, builder: Arc<HttpBuilder>) -> IoResult<()> {
+        builder
             .serve_connection(self, handler)
-            .with_upgrades()
             .await
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            .map_err(|e| IoError::new(ErrorKind::Other, e.to_string()))
     }
 }
 
@@ -163,8 +150,8 @@ impl Acceptor for TcpAcceptor {
             conn,
             local_addr: self.holdings[0].local_addr.clone(),
             remote_addr: remote_addr.into(),
-            http_version: self.holdings[0].http_version,
-            http_scheme: self.holdings[0].http_scheme.clone(),
+            http_version: Version::HTTP_11,
+            http_scheme: Scheme::HTTP,
         })
     }
 }

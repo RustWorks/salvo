@@ -35,8 +35,6 @@
 
 Salvo is an extremely simple and powerful Rust web backend framework. Only basic Rust knowledge is required to develop backend services.
 
-> 中国用户可以添加我微信(chrislearn), 拉微信讨论群.
-
 ## 🎯 Features
 
 - Built with [Hyper](https://crates.io/crates/hyper) and [Tokio](https://crates.io/crates/tokio);
@@ -74,6 +72,13 @@ use salvo::prelude::*;
 #[handler]
 async fn hello(res: &mut Response) {
     res.render(Text::Plain("Hello World"));
+}
+
+#[tokio::main]
+async fn main() {
+    let acceptor = TcpListener::new("127.0.0.1:5800").bind().await;
+    let router =  Router::new().get(hello);
+    Server::new(acceptor).serve(router).await;
 }
 ```
 

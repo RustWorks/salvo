@@ -1,10 +1,18 @@
-//! jwt auth middleware
+//! The jwt auth middleware of Savlo web server framework. Read more: <https://salvo.rs>
+#![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
+#![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(private_in_public, unreachable_pub)]
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
+#![warn(clippy::future_not_send)]
+#![warn(rustdoc::broken_intra_doc_links)]
 
 use std::marker::PhantomData;
 
 pub use jsonwebtoken::errors::Error as JwtError;
 pub use jsonwebtoken::{decode, Algorithm, DecodingKey, TokenData, Validation};
-use once_cell::sync::Lazy;
+// use once_cell::sync::Lazy;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
@@ -17,8 +25,14 @@ pub use finder::{CookieFinder, FormFinder, HeaderFinder, JwtTokenFinder, QueryFi
 mod decoder;
 pub use decoder::{ConstDecoder, JwtAuthDecoder};
 
-pub mod oidc;
-pub use oidc::OidcDecoder;
+#[macro_use]
+mod cfg;
+
+cfg_feature! {
+    #![feature = "oidc"]
+    pub mod oidc;
+    pub use oidc::OidcDecoder;
+}
 
 /// key used to insert auth decoded data to depot.
 pub const JWT_AUTH_DATA_KEY: &str = "::salvo::jwt_auth::auth_data";
@@ -27,24 +41,24 @@ pub const JWT_AUTH_STATE_KEY: &str = "::salvo::jwt_auth::auth_state";
 /// key used to insert auth token data to depot.
 pub const JWT_AUTH_TOKEN_KEY: &str = "::salvo::jwt_auth::auth_token";
 
-static ALL_METHODS: Lazy<Vec<Method>> = Lazy::new(|| {
-    vec![
-        Method::GET,
-        Method::POST,
-        Method::PUT,
-        Method::DELETE,
-        Method::HEAD,
-        Method::OPTIONS,
-        Method::CONNECT,
-        Method::PATCH,
-        Method::TRACE,
-    ]
-});
+const ALL_METHODS: [Method; 9] = [
+    Method::GET,
+    Method::POST,
+    Method::PUT,
+    Method::DELETE,
+    Method::HEAD,
+    Method::OPTIONS,
+    Method::CONNECT,
+    Method::PATCH,
+    Method::TRACE,
+];
 
 /// JwtAuthError
 #[derive(Debug, Error)]
 pub enum JwtAuthError {
     /// HTTP request failed
+    #[cfg(feature = "oidc")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "oidc")))]
     #[error("HTTP request failed")]
     ReqwestError(#[from] reqwest::Error),
     /// InvalidUri
@@ -127,7 +141,7 @@ impl JwtAuthDepotExt for Depot {
 #[non_exhaustive]
 pub struct JwtAuth<C, D> {
     /// Only write auth state to depot when set to `true`.
-    /// 
+    ///
     /// **Note**: If you set to `true`, you must handle auth state in next middlewares or handler.
     pub force_passed: bool,
     _claims: PhantomData<C>,

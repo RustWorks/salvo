@@ -1,0 +1,42 @@
+[package]
+name = "salvo-compression"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+description = """
+Compression support for salvo web server framework.
+"""
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = "./README.md"
+keywords = { workspace = true }
+license = { workspace = true }
+categories = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["full"]
+full = ["brotli", "gzip", "deflate", "zstd"]
+brotli = ["dep:brotli"]
+gzip = ["dep:flate2"]
+deflate = ["dep:flate2"]
+zstd = ["dep:zstd"]
+
+[dependencies]
+brotli = { workspace = true, optional = true, features = ["default"] }
+bytes = { workspace = true }
+flate2 = { workspace = true, optional = true, features = ["default"] }
+futures-util = { workspace = true }
+indexmap = { workspace = true }
+salvo_core = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true, features = ["io"] }
+tracing = { workspace = true }
+zstd = { workspace = true, optional = true, features = ["default"] }
+
+[dev-dependencies]
+salvo_core = { workspace = true, features = ["http1", "test"] }

@@ -22,7 +22,7 @@
 <a href="https://crates.io/crates/salvo"><img alt="crates.io" src="https://img.shields.io/crates/v/salvo" /></a>
 <a href="https://docs.rs/salvo"><img alt="Documentation" src="https://docs.rs/salvo/badge.svg" /></a>
 <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg" /></a>
-<a href="https://blog.rust-lang.org/2022/11/03/Rust-1.65.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.65%2B-blue" /></a>
+<a href="https://blog.rust-lang.org/2023/01/26/Rust-1.67.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.67%2B-blue" /></a>
 <br>
 <a href="https://salvo.rs">
     <img alt="Website" src="https://img.shields.io/badge/https-salvo.rs-%23f00" />
@@ -47,22 +47,10 @@ Salvo is an extremely simple and powerful Rust web backend framework. Only basic
 - Support OpenAPI;
 - Acme support, automatically get TLS certificate from [let's encrypt](https://letsencrypt.org/).
 
-## ⚡️ Quick start
+## ⚡️ Quick Start
 You can view samples [here](https://github.com/salvo-rs/salvo/tree/main/examples), or view [offical website](https://salvo.rs).
 
-Create a new rust project:
-
-```bash
-cargo new hello_salvo --bin
-```
-
-Add this to `Cargo.toml`
-
-```toml
-[dependencies]
-salvo = { version= "*" }
-tokio = { version = "1", features = ["macros"] }
-```
+### Hello World
 
 Create a simple function handler in the main.rs file, we call it `hello`, this function just render plain text `"Hello World"`.
 

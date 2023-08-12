@@ -1,11 +1,13 @@
 //! JoinListener and it's implements.
-use std::io::{self, Result as IoResult};
+use std::io::Result as IoResult;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio_util::sync::CancellationToken;
 
 use crate::async_trait;
 use crate::conn::Holding;
@@ -29,7 +31,7 @@ where
     B: AsyncRead + Send + Unpin + 'static,
 {
     #[inline]
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
         match &mut self.get_mut() {
             JoinedStream::A(a) => Pin::new(a).poll_read(cx, buf),
             JoinedStream::B(b) => Pin::new(b).poll_read(cx, buf),
@@ -43,7 +45,7 @@ where
     B: AsyncWrite + Send + Unpin + 'static,
 {
     #[inline]
-    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
         match &mut self.get_mut() {
             JoinedStream::A(a) => Pin::new(a).poll_write(cx, buf),
             JoinedStream::B(b) => Pin::new(b).poll_write(cx, buf),
@@ -51,7 +53,7 @@ where
     }
 
     #[inline]
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         match &mut self.get_mut() {
             JoinedStream::A(a) => Pin::new(a).poll_flush(cx),
             JoinedStream::B(b) => Pin::new(b).poll_flush(cx),
@@ -59,7 +61,7 @@ where
     }
 
     #[inline]
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         match &mut self.get_mut() {
             JoinedStream::A(a) => Pin::new(a).poll_shutdown(cx),
             JoinedStream::B(b) => Pin::new(b).poll_shutdown(cx),
@@ -117,10 +119,22 @@ where
     A: HttpConnection + Send,
     B: HttpConnection + Send,
 {
-    async fn serve(self, handler: HyperHandler, builder: Arc<HttpBuilder>) -> IoResult<()> {
+    async fn serve(
+        self,
+        handler: HyperHandler,
+        builder: Arc<HttpBuilder>,
+        server_shutdown_token: CancellationToken,
+        idle_connection_timeout: Option<Duration>,
+    ) -> IoResult<()> {
         match self {
-            JoinedStream::A(a) => a.serve(handler, builder).await,
-            JoinedStream::B(b) => b.serve(handler, builder).await,
+            JoinedStream::A(a) => {
+                a.serve(handler, builder, server_shutdown_token, idle_connection_timeout)
+                    .await
+            }
+            JoinedStream::B(b) => {
+                b.serve(handler, builder, server_shutdown_token, idle_connection_timeout)
+                    .await
+            }
         }
     }
 }

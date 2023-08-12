@@ -17,11 +17,19 @@ pub use openapi::*;
 pub mod endpoint;
 pub use endpoint::{Endpoint, EndpointArgRegister, EndpointOutRegister, EndpointRegistry};
 pub mod extract;
-mod router;
+mod routing;
 
 cfg_feature! {
     #![feature ="swagger-ui"]
     pub mod swagger_ui;
+}
+cfg_feature! {
+    #![feature ="rapidoc"]
+    pub mod rapidoc;
+}
+cfg_feature! {
+    #![feature ="redoc"]
+    pub mod redoc;
 }
 
 #[doc = include_str!("../docs/endpoint.md")]
@@ -222,7 +230,7 @@ impl ToSchema for StatusError {
                 .property("name", String::to_schema(components))
                 .required("brief")
                 .property("brief", String::to_schema(components))
-                .required("brief")
+                .required("detail")
                 .property("detail", String::to_schema(components))
                 .property("cause", String::to_schema(components)),
         );

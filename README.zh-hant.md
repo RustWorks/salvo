@@ -22,7 +22,7 @@
 <a href="https://crates.io/crates/salvo"><img alt="crates.io" src="https://img.shields.io/crates/v/salvo" /></a>
 <a href="https://docs.rs/salvo"><img alt="Documentation" src="https://docs.rs/salvo/badge.svg" /></a>
 <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg" /></a>
-<a href="https://blog.rust-lang.org/2022/11/03/Rust-1.65.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.65%2B-blue" /></a>
+<a href="https://blog.rust-lang.org/2023/01/26/Rust-1.67.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.67%2B-blue" /></a>
 <br>
 <a href="https://salvo.rs">
     <img alt="Website" src="https://img.shields.io/badge/https-salvo.rs-%23f00" />
@@ -53,20 +53,8 @@ Salvo 是一個極其簡單且功能強大的 Rust Web 後端框架. 僅僅需�
 
 你可以查看[實例代碼](https://github.com/salvo-rs/salvo/tree/main/examples),  或者訪問[官網](https://salvo.rs).
 
+### Hello World
 
-創建一個全新的項目:
-
-```bash
-cargo new hello_salvo --bin
-```
-
-添加依賴項到 `Cargo.toml`
-
-```toml
-[dependencies]
-salvo = { version= "*" }
-tokio = { version = "1", features = ["macros"] }
-```
 在 `main.rs` 中創建一個簡單的函數句柄, 命名為`hello`, 這個函數隻是簡單地打印文本 `"Hello World"`.
 
 ```rust

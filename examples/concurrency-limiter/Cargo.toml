@@ -1,17 +1,12 @@
 [package]
-name = "example-webtransport"
+name = "example-concurrency-limiter"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
 
 [dependencies]
-anyhow.workspace = true
-futures-util.workspace = true
-salvo = { workspace = true, features = ["quinn", "anyhow", "serve-static"] }
+salvo = { workspace = true, features = ["concurrency-limiter"]}
 tokio = { workspace = true, features = ["macros"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
-serde = "1"
-serde_json = "1"
-bytes = "1"

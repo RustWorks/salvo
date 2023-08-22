@@ -6,7 +6,7 @@
 //! You can define your custom [`CacheIssuer`] to determine which responses should be cached,
 //! or you can use the default [`RequestIssuer`].
 //!
-//! The default cache store is [`MemoryStore`], which is a wrapper of [`moka`].
+//! The default cache store is [`MokaStore`], which is a wrapper of [`moka`].
 //! You can define your own cache store by implementing [`CacheStore`].
 //!
 //! Example: [cache-simple](https://github.com/salvo-rs/salvo/tree/main/examples/cache-simple)
@@ -35,10 +35,10 @@ pub use skipper::MethodSkipper;
 mod cfg;
 
 cfg_feature! {
-    #![feature = "memory-store"]
+    #![feature = "moka-store"]
 
-    pub mod memory_store;
-    pub use memory_store::{MemoryStore};
+    pub mod moka_store;
+    pub use moka_store::{MokaStore};
 }
 
 /// Issuer
@@ -167,6 +167,7 @@ pub trait CacheStore: Send + Sync + 'static {
 /// [`ResBody`] has Stream type, which is not `Send + Sync`, so we need to convert it to `CachedBody`.
 /// If response's body is ['ResBody::Stream`], it will not be cached.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum CachedBody {
     /// None body.
     None,
@@ -283,12 +284,17 @@ where
             Some(cache) => cache,
             None => {
                 ctrl.call_next(req, depot, res).await;
-                if !res.body.is_stream() {
+                if !res.body.is_stream() && !res.body.is_error() {
                     let headers = res.headers().clone();
-                    let body: CachedBody = (&res.body).try_into().unwrap();
-                    let cached_data = CachedEntry::new(res.status_code, headers, body);
-                    if let Err(e) = self.store.save_entry(key, cached_data).await {
-                        tracing::error!(error = ?e, "cache failed");
+                    let body = TryInto::<CachedBody>::try_into(&res.body);
+                    match body {
+                        Ok(body) => {
+                            let cached_data = CachedEntry::new(res.status_code, headers, body);
+                            if let Err(e) = self.store.save_entry(key, cached_data).await {
+                                tracing::error!(error = ?e, "cache failed");
+                            }
+                        }
+                        Err(e) => tracing::error!(error = ?e, "cache failed"),
                     }
                 }
                 return;
@@ -319,7 +325,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache() {
         let cache = Cache::new(
-            MemoryStore::builder()
+            MokaStore::builder()
                 .time_to_live(std::time::Duration::from_secs(5))
                 .build(),
             RequestIssuer::default(),

@@ -1,12 +1,13 @@
 //! native_tls module
+use std::error::Error as StdError;
 use std::io::{Error as IoError, ErrorKind, Result as IoResult};
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use futures_util::stream::BoxStream;
+use futures_util::stream::{BoxStream, Stream, StreamExt};
 use futures_util::task::noop_waker_ref;
-use futures_util::{Stream, StreamExt};
 use http::uri::Scheme;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_native_tls::TlsStream;
@@ -17,37 +18,42 @@ use crate::conn::{Accepted, Acceptor, Holding, HttpBuilder, IntoConfigStream, Li
 use crate::http::{HttpConnection, Version};
 use crate::service::HyperHandler;
 
-use super::NativeTlsConfig;
+use super::Identity;
 
 /// NativeTlsListener
-pub struct NativeTlsListener<C, T> {
-    config_stream: C,
+pub struct NativeTlsListener<S, C, T, E> {
+    config_stream: S,
     inner: T,
+    _phantom: PhantomData<(C, E)>,
 }
-impl<C, T> NativeTlsListener<C, T>
+impl<S, C, T, E> NativeTlsListener<S, C, T, E>
 where
-    C: IntoConfigStream<NativeTlsConfig> + Send + 'static,
+    S: IntoConfigStream<C> + Send + 'static,
+    C: TryInto<Identity, Error = E> + Send + 'static,
     T: Listener + Send,
+    E: StdError + Send,
 {
     /// Create a new `NativeTlsListener`.
     #[inline]
-    pub fn new(config_stream: C, inner: T) -> Self {
-        NativeTlsListener { config_stream, inner }
+    pub fn new(config_stream: S, inner: T) -> Self {
+        NativeTlsListener {
+            config_stream,
+            inner,
+            _phantom: PhantomData,
+        }
     }
 }
 
 #[async_trait]
-impl<C, T> Listener for NativeTlsListener<C, T>
+impl<S, C, T, E> Listener for NativeTlsListener<S, C, T, E>
 where
-    C: IntoConfigStream<NativeTlsConfig> + Send + 'static,
+    S: IntoConfigStream<C> + Send + 'static,
+    C: TryInto<Identity, Error = E> + Send + 'static,
     T: Listener + Send,
     T::Acceptor: Send + 'static,
+    E: StdError + Send,
 {
-    type Acceptor = NativeTlsAcceptor<BoxStream<'static, NativeTlsConfig>, T::Acceptor>;
-
-    async fn bind(self) -> Self::Acceptor {
-        self.try_bind().await.unwrap()
-    }
+    type Acceptor = NativeTlsAcceptor<BoxStream<'static, C>, C, T::Acceptor, E>;
 
     async fn try_bind(self) -> IoResult<Self::Acceptor> {
         Ok(NativeTlsAcceptor::new(
@@ -77,18 +83,20 @@ where
 }
 
 /// NativeTlsAcceptor
-pub struct NativeTlsAcceptor<C, T> {
-    config_stream: C,
+pub struct NativeTlsAcceptor<S, C, T, E> {
+    config_stream: S,
     inner: T,
     holdings: Vec<Holding>,
     tls_acceptor: Option<tokio_native_tls::TlsAcceptor>,
+    _phantom: PhantomData<(C, E)>,
 }
-impl<C, T> NativeTlsAcceptor<C, T>
+impl<S, C, T, E> NativeTlsAcceptor<S, C, T, E>
 where
     T: Acceptor,
+    E: StdError + Send,
 {
     /// Create a new `NativeTlsAcceptor`.
-    pub fn new(config_stream: C, inner: T) -> NativeTlsAcceptor<C, T> {
+    pub fn new(config_stream: S, inner: T) -> NativeTlsAcceptor<S, C, T, E> {
         let holdings = inner
             .holdings()
             .iter()
@@ -114,16 +122,19 @@ where
             inner,
             holdings,
             tls_acceptor: None,
+            _phantom: PhantomData,
         }
     }
 }
 
 #[async_trait]
-impl<C, T> Acceptor for NativeTlsAcceptor<C, T>
+impl<S, C, T, E> Acceptor for NativeTlsAcceptor<S, C, T, E>
 where
-    C: Stream<Item = NativeTlsConfig> + Send + Unpin + 'static,
+    S: Stream<Item = C> + Send + Unpin + 'static,
+    C: TryInto<Identity, Error = E> + Send + 'static,
     T: Acceptor + Send + 'static,
     <T as Acceptor>::Conn: AsyncRead + AsyncWrite + Unpin + Send,
+    E: StdError + Send,
 {
     type Conn = TlsStream<T::Conn>;
 
@@ -145,7 +156,7 @@ where
             config
         };
         if let Some(config) = config {
-            let identity = config.identity()?;
+            let identity = config.try_into().map_err(|e| IoError::new(ErrorKind::Other, e.to_string()))?;
             let tls_acceptor = tokio_native_tls::native_tls::TlsAcceptor::new(identity);
             match tls_acceptor {
                 Ok(tls_acceptor) => {

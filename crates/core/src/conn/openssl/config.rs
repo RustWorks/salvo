@@ -7,11 +7,13 @@ use std::path::Path;
 use futures_util::future::{ready, Ready};
 use futures_util::stream::{once, Once, Stream};
 use openssl::pkey::PKey;
-use openssl::ssl::{SslAcceptor, SslAcceptorBuilder, SslMethod, SslRef};
+use openssl::ssl::{SslAcceptor, SslMethod, SslRef};
 use openssl::x509::X509;
 use tokio::io::ErrorKind;
 
 use crate::conn::IntoConfigStream;
+
+pub use openssl::ssl::SslAcceptorBuilder;
 
 /// Private key and certificate
 #[derive(Debug)]
@@ -119,7 +121,7 @@ impl OpensslConfig {
     }
 
     /// Create [`SslAcceptorBuilder`]
-    pub fn create_acceptor_builder(&mut self) -> Result<SslAcceptorBuilder, IoError> {
+    pub fn create_acceptor_builder(&mut self) -> IoResult<SslAcceptorBuilder> {
         let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
 
         let mut certs = X509::stack_from_pem(self.keycert.cert()?)?;
@@ -147,6 +149,14 @@ impl OpensslConfig {
     }
 }
 
+impl TryInto<SslAcceptorBuilder> for OpensslConfig {
+    type Error = IoError;
+
+    fn try_into(mut self) -> IoResult<SslAcceptorBuilder> {
+        self.create_acceptor_builder()
+    }
+}
+
 impl IntoConfigStream<OpensslConfig> for OpensslConfig {
     type Stream = Once<Ready<OpensslConfig>>;
 
@@ -154,10 +164,20 @@ impl IntoConfigStream<OpensslConfig> for OpensslConfig {
         once(ready(self))
     }
 }
-
 impl<T> IntoConfigStream<OpensslConfig> for T
 where
     T: Stream<Item = OpensslConfig> + Send + 'static,
+{
+    type Stream = T;
+
+    fn into_stream(self) -> Self {
+        self
+    }
+}
+
+impl<T> IntoConfigStream<SslAcceptorBuilder> for T
+where
+    T: Stream<Item = SslAcceptorBuilder> + Send + 'static,
 {
     type Stream = T;
 

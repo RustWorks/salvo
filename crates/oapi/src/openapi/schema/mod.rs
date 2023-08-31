@@ -270,6 +270,12 @@ pub enum KnownFormat {
     DateTime,
     /// Hint to UI to obscure input.
     Password,
+    /// Used with [`String`] values to indicate value is in ULID format.
+    ///
+    /// **ulid** feature need to be enabled.
+    #[cfg(feature = "ulid")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "ulid")))]
+    Ulid,
     /// Used with [`String`] values to indicate value is in UUID format.
     ///
     /// **uuid** feature need to be enabled.

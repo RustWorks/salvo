@@ -3,7 +3,7 @@
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(private_in_public, unreachable_pub)]
+#![deny(unreachable_pub)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(clippy::future_not_send)]
@@ -86,6 +86,11 @@ cfg_feature! {
     #![feature ="websocket"]
     #[doc(no_inline)]
     pub use salvo_extra::websocket;
+}
+cfg_feature! {
+    #![feature ="request_id"]
+    #[doc(no_inline)]
+    pub use salvo_extra::request_id;
 }
 cfg_feature! {
     #![feature ="cache"]
@@ -209,6 +214,10 @@ pub mod prelude {
     cfg_feature! {
         #![feature ="websocket"]
         pub use salvo_extra::websocket::WebSocketUpgrade;
+    }
+    cfg_feature! {
+        #![feature ="request-id"]
+        pub use salvo_extra::request_id::RequestId;
     }
     cfg_feature! {
         #![feature ="serve-static"]

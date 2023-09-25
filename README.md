@@ -16,7 +16,7 @@
     <img alt="build status" src="https://github.com/salvo-rs/salvo/workflows/ci-windows/badge.svg?branch=main&event=push" />
 </a>
 <br>
-<a href="https://discord.gg/rUHf3spK">
+<a href="https://discord.gg/G8KfmS6ByH">
     <img src="https://img.shields.io/discord/1041442427006890014.svg?logo=discord">
 </a>
 <a href="https://crates.io/crates/salvo"><img alt="crates.io" src="https://img.shields.io/crates/v/salvo" /></a>
@@ -50,9 +50,9 @@ Salvo is an extremely simple and powerful Rust web backend framework. Only basic
 ## ⚡️ Quick Start
 You can view samples [here](https://github.com/salvo-rs/salvo/tree/main/examples), or view [offical website](https://salvo.rs).
 
-### Hello World
+### Hello World with ACME and HTTP3
 
-Create a simple function handler in the main.rs file, we call it `hello`, this function just render plain text `"Hello World"`.
+Easily implement a server that supports ACME to automatically obtain certificates and supports HTTP3.
 
 ```rust
 use salvo::prelude::*;
@@ -64,8 +64,13 @@ async fn hello(res: &mut Response) {
 
 #[tokio::main]
 async fn main() {
-    let acceptor = TcpListener::new("127.0.0.1:5800").bind().await;
-    let router =  Router::new().get(hello);
+    let mut router = Router::new().get(hello);
+    let listener = TcpListener::new("0.0.0.0:443")
+        .acme()
+        .cache_path("temp/letsencrypt")
+        .add_domain("test.salvo.rs")
+        .http01_challege(&mut router).quinn("0.0.0.0:443");
+    let acceptor = listener.join(TcpListener::new("0.0.0.0:80")).bind().await;
     Server::new(acceptor).serve(router).await;
 }
 ```
@@ -138,7 +143,7 @@ Router::new()
 
 `<id>` matches a fragment in the path, under normal circumstances, the article `id` is just a number, which we can use regular expressions to restrict `id` matching rules, `r"<id:/\d+/>"`.
 
-You can also use `<*>` or `<**>` to match all remaining path fragments. In order to make the code more readable, you can also add appropriate name to make the path semantics more clear, for example: `<**file_path>`.
+You can also use `<**>`,  `<*+>` or `<*?>` to match all remaining path fragments. In order to make the code more readable, you can also add appropriate name to make the path semantics more clear, for example: `<**file_path>`.
 
 Some regular expressions for matching paths need to be used frequently, and it can be registered in advance, such as GUID:
 
@@ -279,11 +284,6 @@ Benchmark testing result can be found from here:
 
 [https://www.techempower.com/benchmarks/#section=data-r21](https://www.techempower.com/benchmarks/#section=data-r21)
 ![techempower](assets/tp.jpg)
-
-
-## 🎇 Deployment
-
-You can deploy your salvo projects through [shuttle.rs](https://www.shuttle.rs/), it is very easy, you can read shuttle's offical document [here](https://docs.shuttle.rs/guide/salvo-examples.html).
 
 ## 🩸 Contributing
 

@@ -15,7 +15,7 @@ use mime::Mime;
 
 use crate::fs::NamedFile;
 use crate::http::{StatusCode, StatusError};
-use crate::{Error, Piece};
+use crate::{Error, Scribe};
 use bytes::Bytes;
 
 pub use crate::http::body::ResBody;
@@ -321,7 +321,7 @@ impl Response {
     /// ```
     pub fn render<P>(&mut self, piece: P)
     where
-        P: Piece,
+        P: Scribe,
     {
         piece.render(self);
     }
@@ -330,7 +330,7 @@ impl Response {
     #[inline]
     pub fn stuff<P>(&mut self, code: StatusCode, piece: P)
     where
-        P: Piece,
+        P: Scribe,
     {
         self.status_code = Some(code);
         piece.render(self);
@@ -418,12 +418,13 @@ impl Response {
 impl fmt::Debug for Response {
     #[inline]
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(
-            f,
-            "HTTP/1.1 {}\n{:?}",
-            self.status_code.unwrap_or(StatusCode::NOT_FOUND),
-            self.headers
-        )
+        f.debug_struct("Response")
+            .field("status_code", &self.status_code)
+            .field("version", &self.version)
+            .field("headers", &self.headers)
+            // omits Extensions because not useful
+            .field("body", &self.body)
+            .finish()
     }
 }
 

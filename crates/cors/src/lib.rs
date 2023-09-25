@@ -1,3 +1,5 @@
+//! Cross-Origin Resource Sharing (CORS) support for Savlo web server framework.
+//!
 //! [CORS]: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
 //!
 //! # Example
@@ -23,10 +25,12 @@
 //! use salvo_cors::{self as cors, Cors};
 //! let cors_handler = Cors::new().allow_origin(cors::Any).into_handler();
 //! ```
+//!
+//! Read more: <https://salvo.rs>
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(private_in_public, unreachable_pub)]
+#![deny(unreachable_pub)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(clippy::future_not_send)]
@@ -352,7 +356,7 @@ mod tests {
 
         let router = Router::new()
             .hoop(cors_handler)
-            .push(Router::with_path("hello").handle(hello));
+            .push(Router::with_path("hello").goal(hello));
         let service = Service::new(router);
 
         async fn options_access(service: &Service, origin: &str) -> Response {

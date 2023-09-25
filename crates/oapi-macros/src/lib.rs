@@ -7,7 +7,7 @@
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(private_in_public, unreachable_pub)]
+#![deny(unreachable_pub)]
 #![forbid(unsafe_code)]
 #![warn(clippy::future_not_send)]
 #![warn(rustdoc::broken_intra_doc_links)]
@@ -537,5 +537,82 @@ pub(crate) struct FieldRename;
 impl Rename for FieldRename {
     fn rename(rule: &RenameRule, value: &str) -> String {
         rule.rename(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quote::quote;
+    use syn::parse2;
+
+    use super::*;
+
+    #[test]
+    fn test_handler_for_fn() {
+        let input = quote! {
+            #[endpoint]
+            async fn hello() {
+                res.render_plain_text("Hello World");
+            }
+        };
+        let item = parse2(input).unwrap();
+        assert_eq!(
+            endpoint::generate(parse2(quote! {}).unwrap(), item)
+                .unwrap()
+                .to_string(),
+            quote! {
+                #[allow(non_camel_case_types)]
+                #[derive(Debug)]
+                struct hello;
+                impl hello {
+                    #[endpoint]
+                    async fn hello() {
+                        {res.render_plain_text("Hello World");}
+                    }
+                }
+                #[salvo::async_trait]
+                impl salvo::Handler for hello {
+                    #[inline]
+                    async fn handle(
+                        &self,
+                        req: &mut salvo::Request,
+                        depot: &mut salvo::Depot,
+                        res: &mut salvo::Response,
+                        ctrl: &mut salvo::FlowCtrl
+                    ) {
+                        Self::hello().await
+                    }
+                }
+                fn __salvo_oapi_endpoint_type_id_hello() -> ::std::any::TypeId {
+                    ::std::any::TypeId::of::<hello>()
+                }
+                fn __salvo_oapi_endpoint_creator_hello() -> salvo::oapi::Endpoint {
+                    let mut components = salvo::oapi::Components::new();
+                    let status_codes: &[salvo::http::StatusCode] = &[];
+                    fn modify(components: &mut salvo::oapi::Components, operation: &mut salvo::oapi::Operation) {}
+                    let mut operation = salvo::oapi::Operation::new();
+                    modify(&mut components, &mut operation);
+                    if operation.operation_id.is_none() {
+                        operation.operation_id = Some(::std::any::type_name::<hello>().replace("::", "."));
+                    }
+                    if !status_codes.is_empty() {
+                        let responses = std::ops::DerefMut::deref_mut(&mut operation.responses);
+                        responses.retain(|k, _| {
+                            if let Ok(code) = <salvo::http::StatusCode as std::str::FromStr>::from_str(k) {
+                                status_codes.contains(&code)
+                            } else {
+                                true
+                            }
+                        });
+                    }
+                    salvo::oapi::Endpoint {
+                        operation,
+                        components,
+                    }
+                }
+                salvo::oapi::__private::inventory::submit! { salvo :: oapi :: EndpointRegistry :: save (__salvo_oapi_endpoint_type_id_hello , __salvo_oapi_endpoint_creator_hello) }
+            }
+            .to_string()
+        );
     }
 }

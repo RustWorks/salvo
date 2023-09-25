@@ -1,8 +1,10 @@
-//! The jwt auth middleware of Savlo web server framework. Read more: <https://salvo.rs>
+//! The jwt auth middleware of Savlo web server framework.
+//!
+//! Read more: <https://salvo.rs>
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(private_in_public, unreachable_pub)]
+#![deny(unreachable_pub)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(clippy::future_not_send)]
@@ -12,7 +14,6 @@ use std::marker::PhantomData;
 
 pub use jsonwebtoken::errors::Error as JwtError;
 pub use jsonwebtoken::{decode, Algorithm, DecodingKey, TokenData, Validation};
-// use once_cell::sync::Lazy;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
@@ -227,7 +228,7 @@ where
                     depot.insert(JWT_AUTH_TOKEN_KEY, token);
                 }
                 Err(e) => {
-                    tracing::error!(error = ?e, "jwt auth error");
+                    tracing::info!(error = ?e, "jwt auth error");
                     depot.insert(JWT_AUTH_STATE_KEY, JwtAuthState::Forbidden);
                     depot.insert(JWT_AUTH_ERROR_KEY, e);
                     if !self.force_passed {

@@ -2,7 +2,9 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::{self, Formatter};
 
-/// Depot is for store temp data of current request. Each handler can read or write data to it.
+/// `Depot` is for store temp data of current request.
+///
+/// `Depot` is created for each request, each handler can read and write data from it.
 ///
 /// # Example
 ///
@@ -20,7 +22,7 @@ use std::fmt::{self, Formatter};
 /// }
 /// #[tokio::main]
 /// async fn main() {
-///     let router = Router::new().hoop(set_user).handle(hello);
+///     let router = Router::new().hoop(set_user).goal(hello);
 ///     let acceptor = TcpListener::new("127.0.0.1:5800").bind().await;
 ///     Server::new(acceptor).serve(router).await;
 /// }
@@ -29,6 +31,11 @@ use std::fmt::{self, Formatter};
 #[derive(Default)]
 pub struct Depot {
     map: HashMap<String, Box<dyn Any + Send + Sync>>,
+}
+
+#[inline]
+fn type_key<T: 'static>() -> String {
+    format!("{:?}", TypeId::of::<T>())
 }
 
 impl Depot {
@@ -64,7 +71,7 @@ impl Depot {
     /// Inject a value into the depot.
     #[inline]
     pub fn inject<V: Any + Send + Sync>(&mut self, value: V) -> &mut Self {
-        self.map.insert(format!("{:?}", TypeId::of::<V>()), Box::new(value));
+        self.map.insert(type_key::<V>(), Box::new(value));
         self
     }
 
@@ -74,7 +81,7 @@ impl Depot {
     /// Returns `Err(Some(Box<dyn Any + Send + Sync>))` if value is present in depot but downcast failed.
     #[inline]
     pub fn obtain<T: Any + Send + Sync>(&self) -> Result<&T, Option<&Box<dyn Any + Send + Sync>>> {
-        self.get(&format!("{:?}", TypeId::of::<T>()))
+        self.get(&type_key::<T>())
     }
 
     /// Obtain a mutable reference to a value previous inject to the depot.
@@ -83,7 +90,7 @@ impl Depot {
     /// Returns `Err(Some(Box<dyn Any + Send + Sync>))` if value is present in depot but downcast failed.
     #[inline]
     pub fn obtain_mut<T: Any + Send + Sync>(&mut self) -> Result<&mut T, Option<&mut Box<dyn Any + Send + Sync>>> {
-        self.get_mut(&format!("{:?}", TypeId::of::<T>()))
+        self.get_mut(&type_key::<T>())
     }
 
     /// Inserts a key-value pair into the depot.
@@ -101,6 +108,13 @@ impl Depot {
     #[inline]
     pub fn contains_key(&self, key: &str) -> bool {
         self.map.contains_key(key)
+    }
+    /// Check is there a value is injected to the depot.
+    ///
+    /// **Note: This is only check injected value.**
+    #[inline]
+    pub fn contains<T: Any + Send + Sync>(&self) -> bool {
+        self.map.contains_key(&type_key::<T>())
     }
 
     /// Immutably borrows value from depot.
@@ -152,14 +166,10 @@ impl Depot {
         self.map.remove(key).is_some()
     }
 
-    /// Transfer all data to a new instance.
+    /// Remove value from depot and returning the value if the type was previously in the depot.
     #[inline]
-    pub fn transfer(&mut self) -> Self {
-        let mut map = HashMap::with_capacity(self.map.len());
-        for (k, v) in self.map.drain() {
-            map.insert(k, v);
-        }
-        Self { map }
+    pub fn scrape<T: Any + Send + Sync>(&mut self) -> Result<T, Option<Box<dyn Any + Send + Sync>>> {
+        self.remove(&type_key::<T>())
     }
 }
 
@@ -189,15 +199,6 @@ mod test {
         assert_eq!(depot.get_mut::<String>("one").unwrap(), &mut "ONE".to_owned());
     }
 
-    #[test]
-    fn test_transfer() {
-        let mut depot = Depot::with_capacity(6);
-        depot.insert("one", "ONE".to_owned());
-
-        let depot = depot.transfer();
-        assert_eq!(depot.get::<String>("one").unwrap(), &"ONE".to_owned());
-    }
-
     #[tokio::test]
     async fn test_middleware_use_depot() {
         #[handler]
@@ -209,7 +210,7 @@ mod test {
         async fn hello(depot: &mut Depot) -> String {
             format!("Hello {}", depot.get::<&str>("user").copied().unwrap_or_default())
         }
-        let router = Router::new().hoop(set_user).handle(hello);
+        let router = Router::new().hoop(set_user).goal(hello);
         let service = Service::new(router);
 
         let content = TestClient::get("http://127.0.0.1:5800")

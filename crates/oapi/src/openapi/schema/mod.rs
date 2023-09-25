@@ -132,6 +132,12 @@ impl From<Object> for AdditionalProperties<Schema> {
     }
 }
 
+impl From<Array> for AdditionalProperties<Schema> {
+    fn from(value: Array) -> Self {
+        Self::RefOr(RefOr::T(Schema::Array(value)))
+    }
+}
+
 impl From<Ref> for AdditionalProperties<Schema> {
     fn from(value: Ref) -> Self {
         Self::RefOr(RefOr::Ref(value))
@@ -270,6 +276,18 @@ pub enum KnownFormat {
     DateTime,
     /// Hint to UI to obscure input.
     Password,
+    /// Used with [`String`] values to indicate value is in decimal format.
+    ///
+    /// **decimal** feature need to be enabled.
+    #[cfg(any(feature = "decimal", feature = "decimal-float"))]
+    #[cfg_attr(doc_cfg, doc(cfg(any(feature = "decimal", feature = "decimal-float"))))]
+    Decimal,
+    /// Used with [`String`] values to indicate value is in Url format.
+    ///
+    /// **url** feature need to be enabled.
+    #[cfg(feature = "url")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "url")))]
+    Url,
     /// Used with [`String`] values to indicate value is in ULID format.
     ///
     /// **ulid** feature need to be enabled.
@@ -423,6 +441,20 @@ mod tests {
             })
         );
 
+        let json_value = Object::new().additional_properties(Array::new(Object::new().schema_type(SchemaType::Number)));
+        assert_json_eq!(
+            json_value,
+            json!({
+                "type": "object",
+                "additionalProperties": {
+                    "items": {
+                        "type": "number",
+                    },
+                    "type": "array",
+                }
+            })
+        );
+
         let json_value = Object::new().additional_properties(Ref::from_schema_name("ComplexModel"));
         assert_json_eq!(
             json_value,
@@ -509,7 +541,7 @@ mod tests {
                 ),
             )])
             .extend_responses(vec![("200", Response::new("Okay"))])
-            .security_scheme("TLS", SecurityScheme::MutualTls { description: None });
+            .add_security_scheme("TLS", SecurityScheme::MutualTls { description: None });
 
         let serialized_components = serde_json::to_string(&components).unwrap();
 

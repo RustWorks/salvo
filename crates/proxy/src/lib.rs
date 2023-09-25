@@ -1,8 +1,10 @@
-//! Proxy middleware.
+//! Proxy support for Savlo web server framework.
+//!
+//! Read more: <https://salvo.rs>
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(private_in_public, unreachable_pub)]
+#![deny(unreachable_pub)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(clippy::future_not_send)]
@@ -17,7 +19,7 @@ use reqwest::Client;
 use salvo_core::http::header::{HeaderMap, HeaderName, HeaderValue, CONNECTION, HOST, UPGRADE};
 use salvo_core::http::uri::Uri;
 use salvo_core::http::{ReqBody, ResBody, StatusCode};
-use salvo_core::rt::TokioIo;
+use salvo_core::rt::tokio::TokioIo;
 use salvo_core::{async_trait, BoxedError, Depot, Error, FlowCtrl, Handler, Request, Response};
 use tokio::io::copy_bidirectional;
 
@@ -82,7 +84,7 @@ where
 /// Url part getter. You can use this to get the proxied url path or query.
 pub type UrlPartGetter = Box<dyn Fn(&Request, &Depot) -> Option<String> + Send + Sync + 'static>;
 
-/// Default url path getter. This getter will get the url path from request wildcard param, like `<*rest>`, `<**rest>`.
+/// Default url path getter. This getter will get the url path from request wildcard param, like `<**rest>`, `<*+rest>`.
 pub fn default_url_path_getter(req: &Request, _depot: &Depot) -> Option<String> {
     let param = req.params().iter().find(|(key, _)| key.starts_with('*'));
     if let Some((_, rest)) = param {
@@ -96,7 +98,7 @@ pub fn default_url_query_getter(req: &Request, _depot: &Depot) -> Option<String>
     req.uri().query().map(Into::into)
 }
 
-/// Proxy
+/// Handler that can proxy request to other server.
 #[non_exhaustive]
 
 pub struct Proxy<U> {
@@ -390,8 +392,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_proxy() {
-        let router = Router::new()
-            .push(Router::with_path("rust/<**rest>").handle(Proxy::new(vec!["https://www.rust-lang.org"])));
+        let router =
+            Router::new().push(Router::with_path("rust/<**rest>").goal(Proxy::new(vec!["https://www.rust-lang.org"])));
 
         let content = TestClient::get("http://127.0.0.1:5801/rust/tools/install")
             .send(router)

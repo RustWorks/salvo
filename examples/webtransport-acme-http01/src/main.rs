@@ -116,8 +116,8 @@ where
 async fn main() {
     tracing_subscriber::fmt().init();
 
-    let mut router = Router::new().push(Router::with_path("counter").handle(connect)).push(
-        Router::with_path("<**path>").get(StaticDir::new(["webtransport/static", "./static"]).defaults("client.html")),
+    let mut router = Router::new().push(Router::with_path("counter").goal(connect)).push(
+        Router::with_path("<*path>").get(StaticDir::new(["webtransport/static", "./static"]).defaults("client.html")),
     );
 
     let listener = TcpListener::new("0.0.0.0:443")

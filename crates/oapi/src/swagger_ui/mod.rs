@@ -17,7 +17,7 @@ use salvo_core::{async_trait, Depot, Error, FlowCtrl, Handler, Request, Response
 use serde::Serialize;
 
 #[derive(RustEmbed)]
-#[folder = "src/swagger_ui/v5.4.2"]
+#[folder = "src/swagger_ui/v5.7.2"]
 struct SwaggerUiDist;
 
 const INDEX_TMPL: &str = r#"
@@ -165,7 +165,7 @@ impl SwaggerUi {
 
     /// Consusmes the [`SwaggerUi`] and returns [`Router`] with the [`SwaggerUi`] as handler.
     pub fn into_router(self, path: impl Into<String>) -> Router {
-        Router::with_path(format!("{}/<**>", path.into())).handle(self)
+        Router::with_path(format!("{}/<**>", path.into())).goal(self)
     }
 }
 

@@ -2,22 +2,24 @@
 // Licensed under the MIT license http://opensource.org/licenses/MIT
 // port from https://github.com/seanmonstar/warp/blob/master/src/filters/ws.rs
 
-//! WebSocket
+//! WebSocket implementation for Salvo web framework.
+//!
+//! Read more: <https://salvo.rs>
 
 use std::borrow::Cow;
 use std::fmt::{self, Formatter};
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, ready};
 
 use futures_util::sink::{Sink, SinkExt};
 use futures_util::stream::{Stream, StreamExt};
-use futures_util::{future, ready, FutureExt, TryFutureExt};
+use futures_util::{future, FutureExt, TryFutureExt};
 use hyper::upgrade::OnUpgrade;
 use salvo_core::http::header::{SEC_WEBSOCKET_VERSION, UPGRADE};
 use salvo_core::http::headers::{Connection, HeaderMapExt, SecWebsocketAccept, SecWebsocketKey, Upgrade};
 use salvo_core::http::{StatusCode, StatusError};
-use salvo_core::rt::TokioIo;
+use salvo_core::rt::tokio::TokioIo;
 use salvo_core::{Error, Request, Response};
 use tokio_tungstenite::{
     tungstenite::protocol::{self, WebSocketConfig},
@@ -314,6 +316,14 @@ impl Message {
         }
     }
 
+    /// Construct a new Pong `Message`.
+    #[inline]
+    pub fn pong<V: Into<Vec<u8>>>(v: V) -> Message {
+        Message {
+            inner: protocol::Message::Pong(v.into()),
+        }
+    }
+
     /// Construct the default Close `Message`.
     #[inline]
     pub fn close() -> Message {
@@ -422,7 +432,7 @@ mod tests {
     use salvo_core::conn::{Acceptor, Listener};
     use salvo_core::http::header::*;
     use salvo_core::prelude::*;
-    use salvo_core::rt::TokioIo;
+    use salvo_core::rt::tokio::TokioIo;
 
     use super::*;
 
@@ -447,7 +457,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_websocket() {
-        let router = Router::new().handle(connect);
+        let router = Router::new().goal(connect);
         let acceptor = TcpListener::new("127.0.0.1:0").bind().await;
         let addr = acceptor.holdings()[0].local_addr.clone().into_std().unwrap();
 

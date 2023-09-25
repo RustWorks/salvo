@@ -1,8 +1,10 @@
-//! The flash message lib for Savlo web server framework. Read more: <https://salvo.rs>
+//! The flash message lib for Savlo web server framework.
+//!
+//! Read more: <https://salvo.rs>
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(private_in_public, unreachable_pub)]
+#![deny(unreachable_pub)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(clippy::future_not_send)]
@@ -192,7 +194,7 @@ pub trait FlashStore: Debug + Send + Sync + 'static {
     async fn clear_flash(&self, depot: &mut Depot, res: &mut Response);
 }
 
-/// FlashDepotExt
+/// A trait for `Depot` to get flash messages.
 pub trait FlashDepotExt {
     /// Get incoming flash.
     fn incoming_flash(&mut self) -> Option<&Flash>;
@@ -221,7 +223,7 @@ impl FlashDepotExt for Depot {
     }
 }
 
-/// FlashHandler
+/// `FlashHandler` is a middleware for flash messages.
 #[non_exhaustive]
 pub struct FlashHandler<S> {
     store: S,

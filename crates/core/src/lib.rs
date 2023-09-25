@@ -2,12 +2,13 @@
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(private_in_public, unreachable_pub)]
+#![deny(unreachable_pub)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(clippy::future_not_send)]
 #![warn(rustdoc::broken_intra_doc_links)]
 
+/// Re-export `async_trait`.
 pub use async_trait::async_trait;
 pub use hyper;
 pub use salvo_macros::handler;
@@ -53,7 +54,7 @@ pub use self::http::{Request, Response};
 pub use self::routing::{FlowCtrl, Router};
 pub use self::server::Server;
 pub use self::service::Service;
-pub use self::writing::{Piece, Writer};
+pub use self::writing::{Scribe, Writer};
 /// Result type which has `salvo::Error` as it's error type.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -93,7 +94,7 @@ pub mod prelude {
     pub use crate::routing::{FlowCtrl, Router};
     pub use crate::server::Server;
     pub use crate::service::Service;
-    pub use crate::writing::{Json, Piece, Redirect, Text, Writer};
+    pub use crate::writing::{Json, Redirect, Scribe, Text, Writer};
 }
 
 #[doc(hidden)]

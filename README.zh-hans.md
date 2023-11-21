@@ -42,16 +42,29 @@ Salvo(赛风) 是一个极其简单且功能强大的 Rust Web 后端框架. 仅
 - 基于 [Hyper](https://crates.io/crates/hyper), [Tokio](https://crates.io/crates/tokio) 开发;
 - 支持 HTTP1, HTTP2 和 **HTTP3**;
 - 统一的中间件和句柄接口;
-- 路由支持无限层次嵌套;
-- 每一个路由都可以拥有一个或者多个中间件;
+- 路由可以无限嵌套，并且可以在任何路由是附加多个中间件;
 - 集成 Multipart 表单处理;
 - 支持 WebSocket, WebTransport;
 - 支持 OpenAPI;
 - 支持 Acme, 自动从 [let's encrypt](https://letsencrypt.org/) 获取 TLS 证书.
+- 支持 Tower serivce 和 layer.
 
 ## ⚡️ 快速开始
 
 你可以查看[实例代码](https://github.com/salvo-rs/salvo/tree/main/examples),  或者访问[官网](https://salvo.rs).
+
+### 🛠️ Salvo-cli
+Salvo CLI是一个命令行工具，可以简化创建新的Salvo项目的过程，支持Web API、网站、数据库（包括通过SQLx、SeaORM、Diesel、Rbatis支持的SQLite、PostgreSQL、MySQL）和基本的中间件的模板。
+你可以使用 [salvo-cli](https://github.com/salvo-rs/salvo-cli) 来创建一个新的 Salvo 项目:
+#### 安装
+```bash
+cargo install salvo-cli
+```
+#### 创建一个salvo项目
+```bash
+salvo-cli new project_name
+```
+___
 
 ### Hello World with ACME and HTTP3
 

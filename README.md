@@ -40,15 +40,27 @@ Salvo is an extremely simple and powerful Rust web backend framework. Only basic
 - Built with [Hyper](https://crates.io/crates/hyper) and [Tokio](https://crates.io/crates/tokio);
 - HTTP1, HTTP2 and **HTTP3**;
 - Unified middleware and handle interface;
-- Limitless routers nesting;
-- Every router can have one or many middlewares;
+- Router can be nested infinitely, and multiple middlewares can be attached to any router;
 - Integrated Multipart form processing;
 - Support WebSocket, WebTransport;
-- Support OpenAPI;
-- Acme support, automatically get TLS certificate from [let's encrypt](https://letsencrypt.org/).
+- Support OpenAPI, generate OpenAPI data automatic;
+- Support Acme, automatically get TLS certificate from [let's encrypt](https://letsencrypt.org/).
+- Support Tower service and layer.
 
 ## ⚡️ Quick Start
-You can view samples [here](https://github.com/salvo-rs/salvo/tree/main/examples), or view [offical website](https://salvo.rs).
+You can view samples [here](https://github.com/salvo-rs/salvo/tree/main/examples), or view [official website](https://salvo.rs).
+### 🛠️ Salvo-cli
+Salvo CLI is a command-line tool that simplifies the creation of new Salvo projects, supporting templates for web APIs, websites, databases (including SQLite, PostgreSQL, and MySQL via SQLx, SeaORM, Diesel, Rbatis), and basic middleware.
+You can use [salvo-cli](https://github.com/salvo-rs/salvo-cli) to create a new Salvo project:
+#### install
+```bash
+cargo install salvo-cli
+```
+#### create a new salvo project
+```bash
+salvo-cli new project_name
+```
+___
 
 ### Hello World with ACME and HTTP3
 
@@ -299,14 +311,11 @@ All pull requests are code reviewed and tested by the CI. Note that unless you e
 ## ☕ Supporters
 
 Salvo is an open source project. If you want to support Salvo, you can ☕ [**buy a coffee here**](https://ko-fi.com/chrislearn).
-<p style="text-align: center;">
-<img src="https://salvo.rs/images/alipay.png" alt="Alipay" width="180"/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="https://salvo.rs/images/weixin.png" alt="Weixin" width="180"/>
-</p>
 
 ## ⚠️ License
 
 Salvo is licensed under either of
 
-- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)).
 
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT)).

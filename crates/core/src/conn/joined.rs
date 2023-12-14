@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_util::sync::CancellationToken;
 
 use crate::async_trait;
 use crate::conn::{Holding, HttpBuilder};
@@ -94,7 +93,7 @@ where
 {
     type Acceptor = JoinedAcceptor<A::Acceptor, B::Acceptor>;
 
-    async fn try_bind(self) -> IoResult<Self::Acceptor> {
+    async fn try_bind(self) -> crate::Result<Self::Acceptor> {
         let a = self.a.try_bind().await?;
         let b = self.b.try_bind().await?;
         let holdings = a.holdings().iter().chain(b.holdings().iter()).cloned().collect();
@@ -124,18 +123,11 @@ where
         self,
         handler: HyperHandler,
         builder: Arc<HttpBuilder>,
-        server_shutdown_token: CancellationToken,
-        idle_connection_timeout: Option<Duration>,
+        idle_timeout: Option<Duration>,
     ) -> IoResult<()> {
         match self {
-            JoinedStream::A(a) => {
-                a.serve(handler, builder, server_shutdown_token, idle_connection_timeout)
-                    .await
-            }
-            JoinedStream::B(b) => {
-                b.serve(handler, builder, server_shutdown_token, idle_connection_timeout)
-                    .await
-            }
+            JoinedStream::A(a) => a.serve(handler, builder, idle_timeout).await,
+            JoinedStream::B(b) => b.serve(handler, builder, idle_timeout).await,
         }
     }
 }

@@ -11,7 +11,6 @@ use futures_util::task::noop_waker_ref;
 use http::uri::Scheme;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_native_tls::TlsStream;
-use tokio_util::sync::CancellationToken;
 
 use crate::async_trait;
 use crate::conn::{Accepted, Acceptor, Holding, HttpBuilder, IntoConfigStream, Listener};
@@ -55,7 +54,7 @@ where
 {
     type Acceptor = NativeTlsAcceptor<BoxStream<'static, C>, C, T::Acceptor, E>;
 
-    async fn try_bind(self) -> IoResult<Self::Acceptor> {
+    async fn try_bind(self) -> crate::Result<Self::Acceptor> {
         Ok(NativeTlsAcceptor::new(
             self.config_stream.into_stream().boxed(),
             self.inner.try_bind().await?,
@@ -72,11 +71,10 @@ where
         self,
         handler: HyperHandler,
         builder: Arc<HttpBuilder>,
-        server_shutdown_token: CancellationToken,
-        idle_connection_timeout: Option<Duration>,
+        idle_timeout: Option<Duration>,
     ) -> IoResult<()> {
         builder
-            .serve_connection(self, handler, server_shutdown_token, idle_connection_timeout)
+            .serve_connection(self, handler, idle_timeout)
             .await
             .map_err(|e| IoError::new(ErrorKind::Other, e.to_string()))
     }

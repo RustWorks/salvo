@@ -1,4 +1,4 @@
-//! QuinnListener and it's implements.
+//! `QuinnListener`` and utils.
 use std::io::{Error as IoError, Result as IoResult};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
@@ -11,7 +11,6 @@ use futures_util::Stream;
 use salvo_http3::http3_quinn;
 pub use salvo_http3::http3_quinn::ServerConfig;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_util::sync::CancellationToken;
 
 use crate::async_trait;
 use crate::conn::rustls::RustlsConfig;
@@ -27,7 +26,7 @@ pub use listener::{QuinnAcceptor, QuinnListener};
 impl TryInto<ServerConfig> for RustlsConfig {
     type Error = IoError;
     fn try_into(self) -> IoResult<ServerConfig> {
-        let mut crypto = self.build_server_config()?;
+        let mut crypto = self.build_server_config_old()?;
         crypto.alpn_protocols = vec![b"h3-29".to_vec(), b"h3-28".to_vec(), b"h3-27".to_vec(), b"h3".to_vec()];
         Ok(ServerConfig::with_crypto(Arc::new(crypto)))
     }
@@ -78,12 +77,11 @@ impl HttpConnection for H3Connection {
         self,
         handler: HyperHandler,
         builder: Arc<HttpBuilder>,
-        server_shutdown_token: CancellationToken,
-        idle_connection_timeout: Option<Duration>,
+        idle_timeout: Option<Duration>,
     ) -> IoResult<()> {
         builder
             .quinn
-            .serve_connection(self, handler, server_shutdown_token, idle_connection_timeout)
+            .serve_connection(self, handler, idle_timeout)
             .await
     }
 }

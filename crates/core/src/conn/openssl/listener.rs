@@ -13,7 +13,6 @@ use openssl::ssl::{Ssl, SslAcceptor};
 use tokio::io::ErrorKind;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_openssl::SslStream;
-use tokio_util::sync::CancellationToken;
 
 use super::SslAcceptorBuilder;
 
@@ -58,7 +57,7 @@ where
 {
     type Acceptor = OpensslAcceptor<BoxStream<'static, C>, C, T::Acceptor, E>;
 
-    async fn try_bind(self) -> IoResult<Self::Acceptor> {
+    async fn try_bind(self) -> crate::Result<Self::Acceptor> {
         Ok(OpensslAcceptor::new(
             self.config_stream.into_stream().boxed(),
             self.inner.try_bind().await?,
@@ -122,11 +121,10 @@ where
         self,
         handler: HyperHandler,
         builder: Arc<HttpBuilder>,
-        server_shutdown_token: CancellationToken,
-        idle_connection_timeout: Option<Duration>,
+        idle_timeout: Option<Duration>,
     ) -> IoResult<()> {
         builder
-            .serve_connection(self, handler, server_shutdown_token, idle_connection_timeout)
+            .serve_connection(self, handler, idle_timeout)
             .await
             .map_err(|e| IoError::new(ErrorKind::Other, e.to_string()))
     }

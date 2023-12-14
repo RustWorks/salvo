@@ -46,6 +46,7 @@ cfg_feature! {
 cfg_feature! {
     #![feature = "quinn"]
     pub mod quinn;
+    pub(crate) mod rustls_old;
     pub use self::quinn::{QuinnListener, H3Connection};
 }
 cfg_feature! {
@@ -75,7 +76,6 @@ cfg_feature! {
 
         use tokio_rustls::server::TlsStream;
         use tokio::io::{AsyncRead, AsyncWrite};
-        use tokio_util::sync::CancellationToken;
 
         use crate::async_trait;
         use crate::service::HyperHandler;
@@ -89,10 +89,9 @@ cfg_feature! {
             S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
         {
             async fn serve(self, handler: HyperHandler, builder: Arc<HttpBuilder>,
-                server_shutdown_token: CancellationToken,
-                idle_connection_timeout: Option<Duration>) -> IoResult<()> {
+                idle_timeout: Option<Duration>) -> IoResult<()> {
                 builder
-                    .serve_connection(self, handler, server_shutdown_token, idle_connection_timeout)
+                    .serve_connection(self, handler, idle_timeout)
                     .await
                     .map_err(|e| IoError::new(ErrorKind::Other, e.to_string()))
             }
@@ -203,7 +202,7 @@ pub trait Listener {
     }
 
     /// Bind and returns acceptor.
-    async fn try_bind(self) -> IoResult<Self::Acceptor>;
+    async fn try_bind(self) -> crate::Result<Self::Acceptor>;
 
     /// Join current Listener with the other.
     #[inline]

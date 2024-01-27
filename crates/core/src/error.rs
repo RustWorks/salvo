@@ -49,7 +49,6 @@ impl Error {
     }
 }
 impl Display for Error {
-    #[inline]
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::Hyper(e) => Display::fmt(e, f),
@@ -149,7 +148,6 @@ impl From<BoxedError> for Error {
 }
 
 impl Scribe for Error {
-    #[inline]
     fn render(self, res: &mut Response) {
         let status_error = match self {
             Error::HttpStatus(e) => e,

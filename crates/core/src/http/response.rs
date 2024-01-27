@@ -220,11 +220,15 @@ impl Response {
             }
         }
 
+        let status_code = status_code.unwrap_or(match &body {
+            ResBody::None => StatusCode::NOT_FOUND,
+            ResBody::Error(e) => e.code,
+            _ => StatusCode::OK,
+        });
         let mut res = hyper::Response::new(body);
         *res.extensions_mut() = extensions;
         *res.headers_mut() = headers;
-        // Default to a 404 if no response code was set
-        *res.status_mut() = status_code.unwrap_or(StatusCode::NOT_FOUND);
+        *res.status_mut() = status_code;
 
         res
     }
@@ -385,8 +389,7 @@ impl Response {
 
     /// Attempts to send a file. If file not exists, not found error will occur.
     ///
-    /// If you want more settings, you can use `NamedFile::builder` to create a new [`NamedFileBuilder`](crate::fs::NamedFileBuilder).      
-    #[inline]
+    /// If you want more settings, you can use `NamedFile::builder` to create a new [`NamedFileBuilder`](crate::fs::NamedFileBuilder).
     pub async fn send_file<P>(&mut self, path: P, req_headers: &HeaderMap)
     where
         P: Into<PathBuf> + Send,
@@ -403,7 +406,6 @@ impl Response {
     }
 
     /// Write bytes data to body. If body is none, a new `ResBody` will created.
-    #[inline]
     pub fn write_body(&mut self, data: impl Into<Bytes>) -> crate::Result<()> {
         match self.body_mut() {
             ResBody::None => {
@@ -469,7 +471,6 @@ impl Response {
 }
 
 impl fmt::Debug for Response {
-    #[inline]
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_struct("Response")
             .field("status_code", &self.status_code)

@@ -1,4 +1,3 @@
-use salvo_core::async_trait;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
@@ -29,7 +28,6 @@ impl FixedGuard {
     }
 }
 
-#[async_trait]
 impl RateGuard for FixedGuard {
     type Quota = BasicQuota;
     async fn verify(&mut self, quota: &Self::Quota) -> bool {
@@ -50,5 +48,17 @@ impl RateGuard for FixedGuard {
         } else {
             false
         }
+    }
+
+    async fn remaining(&self, quota: &Self::Quota) -> usize {
+        quota.limit - self.count
+    }
+
+    async fn reset(&self, _: &Self::Quota) -> i64 {
+        self.reset.unix_timestamp()
+    }
+
+    async fn limit(&self, quota: &Self::Quota) -> usize {
+        quota.limit
     }
 }

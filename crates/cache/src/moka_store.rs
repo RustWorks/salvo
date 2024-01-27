@@ -8,7 +8,6 @@ use std::time::Duration;
 use moka::future::Cache as MokaCache;
 use moka::future::CacheBuilder as MokaCacheBuilder;
 use moka::notification::RemovalCause;
-use salvo_core::async_trait;
 
 use super::{CacheStore, CachedEntry};
 
@@ -105,7 +104,7 @@ where
             inner: MokaCache::new(max_capacity),
         }
     }
-    
+
     /// Returns a [`Builder`], which can builds a `MokaStore`
     pub fn builder() -> Builder<K> {
         Builder {
@@ -114,7 +113,6 @@ where
     }
 }
 
-#[async_trait]
 impl<K> CacheStore for MokaStore<K>
 where
     K: Hash + Eq + Send + Sync + Clone + 'static,

@@ -1,12 +1,12 @@
 //! TcpListener and it's implements.
 use std::io::{Error as IoError, ErrorKind, Result as IoResult};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
 use tokio::net::{TcpListener as TokioTcpListener, TcpStream, ToSocketAddrs};
 
-use crate::async_trait;
 use crate::conn::{Holding, HttpBuilder};
 use crate::http::uri::Scheme;
 use crate::http::{HttpConnection, Version};
@@ -95,7 +95,6 @@ impl<T: ToSocketAddrs + Send> TcpListener<T> {
         }
     }
 }
-#[async_trait]
 impl<T> Listener for TcpListener<T>
 where
     T: ToSocketAddrs + Send,
@@ -110,6 +109,29 @@ where
 pub struct TcpAcceptor {
     inner: TokioTcpListener,
     holdings: Vec<Holding>,
+}
+
+impl TcpAcceptor {
+    /// Returns the local address that this listener is bound to.
+    ///
+    /// This can be useful, for example, when binding to port 0 to figure out
+    /// which port was actually bound.
+    pub fn local_addr(&self) -> IoResult<SocketAddr> {
+        self.inner.local_addr()
+    }
+
+    /// Gets the value of the `IP_TTL` option for this socket.
+    pub fn ttl(&self) -> IoResult<u32> {
+        self.inner.ttl()
+    }
+
+    /// Sets the value for the `IP_TTL` option on this socket.
+    ///
+    /// This value sets the time-to-live field that is used in every packet sent
+    /// from this socket.
+    pub fn set_ttl(&self, ttl: u32) -> IoResult<()> {
+        self.inner.set_ttl(ttl)
+    }
 }
 
 impl TryFrom<TokioTcpListener> for TcpAcceptor {
@@ -128,7 +150,6 @@ impl TryFrom<TokioTcpListener> for TcpAcceptor {
     }
 }
 
-#[async_trait]
 impl HttpConnection for TcpStream {
     async fn serve(
         self,
@@ -143,7 +164,6 @@ impl HttpConnection for TcpStream {
     }
 }
 
-#[async_trait]
 impl Acceptor for TcpAcceptor {
     type Conn = TcpStream;
 

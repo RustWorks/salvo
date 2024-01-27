@@ -25,8 +25,8 @@ pub struct OneOf {
     pub description: Option<String>,
 
     /// Default value which is provided when user has not provided the input in Swagger UI.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default: Option<Value>,
+    #[serde(rename = "default", skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<Value>,
 
     /// Example shown in UI of the value for richer documentation.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -89,7 +89,7 @@ impl OneOf {
 
     /// Add or change default value for the object which is provided when user has not provided the input in Swagger UI.
     pub fn default_value(mut self, default: Value) -> Self {
-        self.default = Some(default);
+        self.default_value = Some(default);
         self
     }
 
@@ -121,5 +121,65 @@ impl From<OneOf> for Schema {
 impl From<OneOf> for RefOr<Schema> {
     fn from(one_of: OneOf) -> Self {
         Self::T(Schema::OneOf(one_of))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_json_diff::assert_json_eq;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn test_build_one_of() {
+        let one_of = OneOf::with_capacity(5)
+            .title("title")
+            .description("description")
+            .default_value(Value::String("default".to_string()))
+            .example(Value::String("example".to_string()))
+            .discriminator(Discriminator::new("discriminator".to_string()))
+            .nullable(true);
+
+        assert_eq!(one_of.items.len(), 0);
+        assert_eq!(one_of.items.capacity(), 5);
+        assert_json_eq!(
+            one_of,
+            json!({
+                "oneOf": [],
+                "title": "title",
+                "description": "description",
+                "default": "default",
+                "example": "example",
+                "discriminator": {
+                    "propertyName": "discriminator"
+                },
+                "nullable": true
+            })
+        )
+    }
+
+    #[test]
+    fn test_schema_from_one_of() {
+        let one_of = OneOf::new();
+        let schema = Schema::from(one_of);
+        assert_json_eq!(
+            schema,
+            json!({
+                "oneOf": []
+            })
+        )
+    }
+
+    #[test]
+    fn test_refor_schema_from_one_of() {
+        let one_of = OneOf::new();
+        let ref_or: RefOr<Schema> = RefOr::from(one_of);
+        assert_json_eq!(
+            ref_or,
+            json!({
+                "oneOf": []
+            })
+        )
     }
 }

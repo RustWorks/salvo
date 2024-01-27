@@ -17,7 +17,7 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
 use crate::http::body::ReqBody;
-use crate::http::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE};
+use crate::http::header::{HeaderMap, CONTENT_TYPE};
 use crate::http::ParseError;
 
 /// The extracted text fields and uploaded files from a `multipart/form-data` request.
@@ -66,8 +66,7 @@ impl FormData {
                     let mut multipart = Multipart::new(body, boundary);
                     while let Some(mut field) = multipart.next_field().await? {
                         if let Some(name) = field.name().map(|s| s.to_owned()) {
-                            if field.headers().get("content-type").is_some() {
-                                //TODO: use CONTENT_TYPE after multer updated
+                            if field.headers().get(CONTENT_TYPE).is_some() {
                                 form_data.files.insert(name, FilePart::create(&mut field).await?);
                             } else {
                                 form_data.fields.insert(name, field.text().await?);
@@ -141,7 +140,6 @@ impl FilePart {
 
     /// Create a new temporary FilePart (when created this way, the file will be
     /// deleted once the FilePart object goes out of scope).
-    #[inline]
     pub async fn create(field: &mut Field<'_>) -> Result<FilePart, ParseError> {
         // Setup a file to capture the contents.
         let mut path = tokio::task::spawn_blocking(|| Builder::new().prefix("salvo_http_multipart").tempdir())
@@ -163,17 +161,9 @@ impl FilePart {
             size += chunk.len() as u64;
             file.write_all(&chunk).await?;
         }
-        //TODO: Will remove after multer updated
-        let mut headers = HeaderMap::with_capacity(field.headers().len());
-        headers.extend(field.headers().into_iter().map(|(name, value)| {
-            let name = HeaderName::from_bytes(name.as_ref()).unwrap();
-            let value = HeaderValue::from_bytes(value.as_ref()).unwrap();
-            (name, value)
-        }));
         Ok(FilePart {
             name,
-            //TODO: use field.headers().to_owned() after multer updated
-            headers,
+            headers: field.headers().to_owned(),
             path,
             size,
             temp_dir,

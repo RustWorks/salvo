@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::convert::TryInto;
+use std::future::Future;
 use std::str;
 use std::sync::Arc;
 
@@ -11,7 +12,7 @@ use url::Url;
 use crate::http::body::ReqBody;
 use crate::http::Method;
 use crate::routing::{FlowCtrl, Router};
-use crate::{async_trait, Depot, Error, Handler, Request, Response, Service};
+use crate::{ Depot, Error, Handler, Request, Response, Service};
 
 /// `RequestBuilder` is the main way of building requests.
 ///
@@ -247,33 +248,30 @@ impl RequestBuilder {
         target.call(self.build()).await
     }
 }
-#[async_trait]
+
+/// Trait for sending request to target, such as [`Router`], [`Service`], [`Handler`]. for test usage.
 pub trait SendTarget {
+    /// Send request to target, such as [`Router`], [`Service`], [`Handler`].
     #[must_use = "future must be used"]
-    async fn call(self, req: Request) -> Response;
+    fn call(self, req: Request) -> impl Future<Output = Response> + Send;
 }
-#[async_trait]
 impl SendTarget for &Service {
     async fn call(self, req: Request) -> Response {
         self.handle(req).await
     }
 }
-#[async_trait]
 impl SendTarget for Router {
     async fn call(self, req: Request) -> Response {
         let router = Arc::new(self);
         SendTarget::call(router, req).await
     }
 }
-#[async_trait]
 impl SendTarget for Arc<Router> {
     async fn call(self, req: Request) -> Response {
         let srv = Service::new(self);
         srv.handle(req).await
     }
 }
-
-#[async_trait]
 impl<T> SendTarget for Arc<T>
 where
     T: Handler + Send,
@@ -290,7 +288,6 @@ where
         res
     }
 }
-#[async_trait]
 impl<T> SendTarget for T
 where
     T: Handler + Send,

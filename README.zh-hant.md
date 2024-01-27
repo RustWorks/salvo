@@ -22,7 +22,7 @@
 <a href="https://crates.io/crates/salvo"><img alt="crates.io" src="https://img.shields.io/crates/v/salvo" /></a>
 <a href="https://docs.rs/salvo"><img alt="Documentation" src="https://docs.rs/salvo/badge.svg" /></a>
 <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg" /></a>
-<a href="https://blog.rust-lang.org/2023/06/01/Rust-1.70.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.70%2B-blue" /></a>
+<a href="https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.75%2B-blue" /></a>
 <br>
 <a href="https://salvo.rs">
     <img alt="Website" src="https://img.shields.io/badge/https-salvo.rs-%23f00" />
@@ -39,7 +39,7 @@ Salvo(賽風) 是一個極其簡單且功能強大的 Rust Web 後端框架. 僅
 
 ## 🎯 功能特色
 
-- 基於 [Hyper 1.0](https://crates.io/crates/hyper), [Tokio](https://crates.io/crates/tokio) 開發;
+- 基於 [Hyper 1](https://crates.io/crates/hyper), [Tokio](https://crates.io/crates/tokio) 開發;
 - 統一的中間件和句柄接口;
 - 支持 HTTP1, HTTP2 和 **HTTP3**;
 - 路由可以無限嵌套，並且可以在任何路由是附加多個中間件;
@@ -158,7 +158,7 @@ Router::new()
     );
 ```
 
-`<id>` 匹配了路徑中的一個片段, 正常情況下文章的 `id` 隻是一個數字, 這是我們可以使用正則錶達式限製 `id` 的匹配規則, `r"<id:/\d+/>"`. 
+`<id>` 匹配了路徑中的一個片段, 正常情況下文章的 `id` 隻是一個數字, 這是我們可以使用正則錶達式限製 `id` 的匹配規則, `r"<id:/\d+/>"`.
 
 還可以通過 `<**>`, `<*+>` 或者 `<*?>` 匹配所有剩餘的路徑片段. 為了代碼易讀性性強些, 也可以添加適合的名字, 讓路徑語義更清晰, 比如: `<**file_path>`.
 
@@ -202,7 +202,7 @@ async fn upload(req: &mut Request, res: &mut Response) {
 
 ### 提取請求數據
 
-可以輕鬆地從多個不同數據源獲取數據, 並且組裝為你想要的類型. 可以先定義一個自定義的類型, 比如: 
+可以輕鬆地從多個不同數據源獲取數據, 並且組裝為你想要的類型. 可以先定義一個自定義的類型, 比如:
 
 ```rust
 #[derive(Serialize, Deserialize, Extractible, Debug)]
@@ -315,7 +315,7 @@ All pull requests are code reviewed and tested by the CI. Note that unless you e
 
 ## ☕ 支持
 
-`Salvo`是一個開源項目, 如果想支持本項目, 可以 ☕ [**在這裏買一杯咖啡**](https://ko-fi.com/chrislearn). 
+`Salvo`是一個開源項目, 如果想支持本項目, 可以 ☕ [**請我喝杯咖啡**](https://ko-fi.com/chrislearn).
 <p style="text-align: center;">
 <img src="https://salvo.rs/images/alipay.png" alt="Alipay" width="180"/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="https://salvo.rs/images/weixin.png" alt="Weixin" width="180"/>
 </p>

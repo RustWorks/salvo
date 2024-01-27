@@ -169,8 +169,7 @@ macro_rules! impl_to_schema_primitive {
 pub mod oapi {
     pub use super::*;
 }
-// Create `salvo-oapi` module so we can use `salvo-oapi-macros` directly
-// from `salvo-oapi` crate. ONLY FOR INTERNAL USE!
+
 #[doc(hidden)]
 pub mod __private {
     pub use inventory;
@@ -267,7 +266,7 @@ impl<T: ToSchema> ToSchema for Option<T> {
 
 impl<T> ToSchema for PhantomData<T> {
     fn to_schema(_components: &mut Components) -> RefOr<schema::Schema> {
-        Schema::Object(Object::default()).into()
+        Schema::Object(Default::default()).into()
     }
 }
 
@@ -385,16 +384,15 @@ where
 ///     }
 /// }
 ///
-/// #[async_trait]
-/// impl<'de> Extractible<'de> for PetParams {
-///    fn metadata() -> &'de Metadata {
+/// impl<'ex> Extractible<'ex> for PetParams {
+///    fn metadata() -> &'ex Metadata {
 ///      static METADATA: Metadata = Metadata::new("");
 ///      &METADATA
 ///    }
-///    async fn extract(req: &'de mut Request) -> Result<Self, salvo_core::http::ParseError> {
+///    async fn extract(req: &'ex mut Request) -> Result<Self, salvo_core::http::ParseError> {
 ///        salvo_core::serde::from_request(req, Self::metadata()).await
 ///    }
-///    async fn extract_with_arg(req: &'de mut Request, _arg: &str) -> Result<Self, salvo_core::http::ParseError> {
+///    async fn extract_with_arg(req: &'ex mut Request, _arg: &str) -> Result<Self, salvo_core::http::ParseError> {
 ///        Self::extract(req).await
 ///    }
 /// }

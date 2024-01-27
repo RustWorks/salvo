@@ -86,16 +86,16 @@ impl Catcher {
         &mut self.hoops
     }
 
-    /// Add a handler as middleware, it will run the handler in current router or it's descendants
-    /// handle the request.
+    /// Add a handler as middleware, it will run the handler when error catched.
     #[inline]
     pub fn hoop<H: Handler>(mut self, hoop: H) -> Self {
         self.hoops.push(Arc::new(hoop));
         self
     }
 
-    /// Add a handler as middleware, it will run the handler in current router or it's descendants
-    /// handle the request. This middleware only effective when the filter return true.
+    /// Add a handler as middleware, it will run the handler when error catched.
+    ///
+    /// This middleware only effective when the filter return true.
     #[inline]
     pub fn hoop_when<H, F>(mut self, hoop: H, filter: F) -> Self
     where
@@ -162,7 +162,6 @@ impl Handler for DefaultGoal {
     }
 }
 
-#[inline]
 fn status_error_html(code: StatusCode, name: &str, brief: &str, cause: Option<&str>, footer: Option<&str>) -> String {
     format!(
         r#"<!DOCTYPE html>
@@ -231,7 +230,6 @@ fn status_error_json(code: StatusCode, name: &str, brief: &str, cause: Option<&s
     serde_json::to_string(&data).unwrap()
 }
 
-#[inline]
 fn status_error_plain(code: StatusCode, name: &str, brief: &str, cause: Option<&str>) -> String {
     format!(
         "code: {}\n\nname: {}\n\nbrief: {}\n\ncause: {}",
@@ -242,7 +240,6 @@ fn status_error_plain(code: StatusCode, name: &str, brief: &str, cause: Option<&
     )
 }
 
-#[inline]
 fn status_error_xml(code: StatusCode, name: &str, brief: &str, cause: Option<&str>) -> String {
     #[derive(Serialize)]
     struct Data<'a> {
@@ -307,7 +304,7 @@ mod tests {
     struct CustomError;
     #[async_trait]
     impl Writer for CustomError {
-        async fn write(mut self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+        async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
             res.status_code = Some(StatusCode::INTERNAL_SERVER_ERROR);
             res.render("custom error");
         }

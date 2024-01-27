@@ -46,7 +46,6 @@ impl ResolveServerCert {
 }
 
 impl ResolvesServerCert for ResolveServerCert {
-    #[inline]
     fn resolve(&self, client_hello: ClientHello) -> Option<Arc<CertifiedKey>> {
         if client_hello
             .alpn()
@@ -56,11 +55,11 @@ impl ResolvesServerCert for ResolveServerCert {
             return match client_hello.server_name() {
                 None => None,
                 Some(domain) => {
-                    tracing::debug!(domain = domain, "load acme key");
+                    tracing::debug!(domain, "load acme key");
                     match self.acme_keys.read().get(domain).cloned() {
                         Some(cert) => Some(cert),
                         None => {
-                            tracing::error!(domain = domain, "acme key not found");
+                            tracing::error!(domain, "acme key not found");
                             None
                         }
                     }
@@ -80,7 +79,6 @@ pub(crate) struct ResolveServerCertOld {
 }
 #[cfg(feature = "quinn")]
 impl ResolvesServerCertOld for ResolveServerCertOld {
-    #[inline]
     fn resolve(&self, client_hello: OldClientHello) -> Option<Arc<CertifiedKeyOld>> {
         if client_hello
             .alpn()
@@ -90,11 +88,11 @@ impl ResolvesServerCertOld for ResolveServerCertOld {
             return match client_hello.server_name() {
                 None => None,
                 Some(domain) => {
-                    tracing::debug!(domain = domain, "load acme key");
+                    tracing::debug!(domain, "load acme key");
                     match self.acme_keys.read().get(domain).cloned() {
                         Some(cert) => Some(cert),
                         None => {
-                            tracing::error!(domain = domain, "acme key not found");
+                            tracing::error!(domain, "acme key not found");
                             None
                         }
                     }

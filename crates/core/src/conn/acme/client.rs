@@ -4,7 +4,7 @@ use base64::engine::{general_purpose::URL_SAFE_NO_PAD, Engine};
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::Uri;
-use hyper_tls::HttpsConnector;
+use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::client::legacy::{connect::HttpConnector, Client};
 use hyper_util::rt::TokioExecutor;
 use serde::{Deserialize, Serialize};
@@ -44,9 +44,14 @@ pub(crate) struct AcmeClient {
 }
 
 impl AcmeClient {
-    #[inline]
     pub(crate) async fn new(directory_url: &str, key_pair: Arc<KeyPair>, contacts: Vec<String>) -> crate::Result<Self> {
-        let client = Client::builder(TokioExecutor::new()).build(HttpsConnector::new());
+        let https = HttpsConnectorBuilder::new()
+            .with_native_roots()
+            .expect("no native root CA certificates found")
+            .https_only()
+            .enable_http1()
+            .build();
+        let client = Client::builder(TokioExecutor::new()).build(https);
         let directory = get_directory(&client, directory_url).await?;
         Ok(Self {
             client,
@@ -108,9 +113,8 @@ impl AcmeClient {
         Ok(res)
     }
 
-    #[inline]
     pub(crate) async fn fetch_authorization(&self, auth_url: &str) -> crate::Result<FetchAuthorizationResponse> {
-        tracing::debug!(auth_uri = %auth_url, "fetch authorization");
+        tracing::debug!(auth_url, "fetch authorization");
 
         let nonce = get_nonce(&self.client, &self.directory.new_nonce).await?;
         let res: FetchAuthorizationResponse = jose::request_json(
@@ -132,7 +136,6 @@ impl AcmeClient {
         Ok(res)
     }
 
-    #[inline]
     pub(crate) async fn trigger_challenge(
         &self,
         domain: &str,
@@ -160,9 +163,8 @@ impl AcmeClient {
         Ok(())
     }
 
-    #[inline]
     pub(crate) async fn send_csr(&self, url: &str, csr: &[u8]) -> crate::Result<NewOrderResponse> {
-        tracing::debug!(url = %url, "send certificate request");
+        tracing::debug!(url, "send certificate request");
 
         #[derive(Debug, Serialize)]
         #[serde(rename_all = "camelCase")]
@@ -184,9 +186,8 @@ impl AcmeClient {
         .await
     }
 
-    #[inline]
     pub(crate) async fn obtain_certificate(&self, url: &str) -> crate::Result<Bytes> {
-        tracing::debug!(url = %url, "send certificate request");
+        tracing::debug!(url, "send certificate request");
 
         let nonce = get_nonce(&self.client, &self.directory.new_nonce).await?;
         let res = jose::request(
@@ -301,6 +302,6 @@ async fn create_acme_account(
         .map(|s| s.to_owned())
         .map_err(|_| Error::other("unable to get account id"));
 
-    tracing::debug!(kid = ?kid, "account created");
+    tracing::debug!(?kid, "account created");
     kid
 }

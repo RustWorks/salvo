@@ -22,11 +22,12 @@
 
 use std::borrow::Borrow;
 use std::error::Error as StdError;
+use std::future::Future;
 use std::hash::Hash;
 
 use salvo_core::conn::SocketAddr;
 use salvo_core::handler::{none_skipper, Skipper};
-use salvo_core::http::{Request, Response, StatusCode, StatusError};
+use salvo_core::http::{HeaderValue, Request, Response, StatusCode, StatusError};
 use salvo_core::{async_trait, Depot, FlowCtrl, Handler};
 
 mod quota;
@@ -56,14 +57,12 @@ cfg_feature! {
 }
 
 /// Issuer is used to identify every request.
-#[async_trait]
 pub trait RateIssuer: Send + Sync + 'static {
     /// The key is used to identify the rate limit.
     type Key: Hash + Eq + Send + Sync + 'static;
     /// Issue a new key for the request.
-    async fn issue(&self, req: &mut Request, depot: &Depot) -> Option<Self::Key>;
+    fn issue(&self, req: &mut Request, depot: &Depot) -> impl Future<Output = Option<Self::Key>> + Send;
 }
-#[async_trait]
 impl<F, K> RateIssuer for F
 where
     F: Fn(&mut Request, &Depot) -> Option<K> + Send + Sync + 'static,
@@ -77,7 +76,6 @@ where
 
 /// Identify user by IP address.
 pub struct RemoteIpIssuer;
-#[async_trait]
 impl RateIssuer for RemoteIpIssuer {
     type Key = String;
     async fn issue(&self, req: &mut Request, _depot: &Depot) -> Option<Self::Key> {
@@ -90,16 +88,23 @@ impl RateIssuer for RemoteIpIssuer {
 }
 
 /// `RateGuard` is strategy to verify is the request exceeded quota
-#[async_trait]
 pub trait RateGuard: Clone + Send + Sync + 'static {
     /// The quota for the rate limit.
     type Quota: Clone + Send + Sync + 'static;
     /// Verify is current request exceed the quota.
-    async fn verify(&mut self, quota: &Self::Quota) -> bool;
+    fn verify(&mut self, quota: &Self::Quota) -> impl Future<Output = bool> + Send;
+
+    /// Returns the remaining quota.
+    fn remaining(&self, quota: &Self::Quota) -> impl Future<Output = usize> + Send;
+
+    /// Returns the reset time.
+    fn reset(&self, quota: &Self::Quota) -> impl Future<Output = i64> + Send;
+
+    /// Returns the limit.
+    fn limit(&self, quota: &Self::Quota) -> impl Future<Output = usize> + Send;
 }
 
 /// `RateStore` is used to store rate limit data.
-#[async_trait]
 pub trait RateStore: Send + Sync + 'static {
     /// Error type for RateStore.
     type Error: StdError;
@@ -108,12 +113,16 @@ pub trait RateStore: Send + Sync + 'static {
     /// Saved guard.
     type Guard;
     /// Get the guard from the store.
-    async fn load_guard<Q>(&self, key: &Q, refer: &Self::Guard) -> Result<Self::Guard, Self::Error>
+    fn load_guard<Q>(
+        &self,
+        key: &Q,
+        refer: &Self::Guard,
+    ) -> impl Future<Output = Result<Self::Guard, Self::Error>> + Send
     where
         Self::Key: Borrow<Q>,
         Q: Hash + Eq + Sync;
     /// Save the guard from the store.
-    async fn save_guard(&self, key: Self::Key, guard: Self::Guard) -> Result<(), Self::Error>;
+    fn save_guard(&self, key: Self::Key, guard: Self::Guard) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }
 
 /// `RateLimiter` is the main struct to used limit user request.
@@ -122,6 +131,7 @@ pub struct RateLimiter<G, S, I, Q> {
     store: S,
     issuer: I,
     quota_getter: Q,
+    add_headers: bool,
     skipper: Box<dyn Skipper>,
 }
 
@@ -134,6 +144,7 @@ impl<G: RateGuard, S: RateStore, I: RateIssuer, P: QuotaGetter<I::Key>> RateLimi
             store,
             issuer,
             quota_getter,
+            add_headers: false,
             skipper: Box::new(none_skipper),
         }
     }
@@ -142,6 +153,14 @@ impl<G: RateGuard, S: RateStore, I: RateIssuer, P: QuotaGetter<I::Key>> RateLimi
     #[inline]
     pub fn with_skipper(mut self, skipper: impl Skipper) -> Self {
         self.skipper = Box::new(skipper);
+        self
+    }
+
+    /// Sets `add_headers` and returns new `RateLimiter`.
+    /// If `add_headers` is true, the rate limit headers will be added to the response.
+    #[inline]
+    pub fn add_headers(mut self, add_headers: bool) -> Self {
+        self.add_headers = add_headers;
         self
     }
 }
@@ -185,6 +204,21 @@ where
             }
         };
         let verified = guard.verify(&quota).await;
+
+        if self.add_headers {
+            res.headers_mut().insert(
+                "X-RateLimit-Limit",
+                HeaderValue::from_str(&guard.limit(&quota).await.to_string()).unwrap(),
+            );
+            res.headers_mut().insert(
+                "X-RateLimit-Remaining",
+                HeaderValue::from_str(&(guard.remaining(&quota).await).to_string()).unwrap(),
+            );
+            res.headers_mut().insert(
+                "X-RateLimit-Reset",
+                HeaderValue::from_str(&guard.reset(&quota).await.to_string()).unwrap(),
+            );
+        }
         if !verified {
             res.status_code(StatusCode::TOO_MANY_REQUESTS);
             ctrl.skip_rest();
@@ -207,7 +241,6 @@ mod tests {
     use super::*;
 
     struct UserIssuer;
-    #[async_trait]
     impl RateIssuer for UserIssuer {
         type Key = String;
         async fn issue(&self, req: &mut Request, _depot: &Depot) -> Option<Self::Key> {
@@ -230,7 +263,6 @@ mod tests {
         });
 
         struct CustomQuotaGetter;
-        #[async_trait]
         impl QuotaGetter<String> for CustomQuotaGetter {
             type Quota = BasicQuota;
             type Error = Error;
@@ -311,7 +343,6 @@ mod tests {
         });
 
         struct CustomQuotaGetter;
-        #[async_trait]
         impl QuotaGetter<String> for CustomQuotaGetter {
             type Quota = CelledQuota;
             type Error = Error;

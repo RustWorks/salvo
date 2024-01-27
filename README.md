@@ -22,7 +22,7 @@
 <a href="https://crates.io/crates/salvo"><img alt="crates.io" src="https://img.shields.io/crates/v/salvo" /></a>
 <a href="https://docs.rs/salvo"><img alt="Documentation" src="https://docs.rs/salvo/badge.svg" /></a>
 <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg" /></a>
-<a href="https://blog.rust-lang.org/2023/06/01/Rust-1.70.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.70%2B-blue" /></a>
+<a href="https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.75%2B-blue" /></a>
 <br>
 <a href="https://salvo.rs">
     <img alt="Website" src="https://img.shields.io/badge/https-salvo.rs-%23f00" />
@@ -37,15 +37,15 @@ Salvo is an extremely simple and powerful Rust web backend framework. Only basic
 
 ## 🎯 Features
 
-- Built with [Hyper 1.0](https://crates.io/crates/hyper) and [Tokio](https://crates.io/crates/tokio);
+- Built with [Hyper 1](https://crates.io/crates/hyper) and [Tokio](https://crates.io/crates/tokio);
 - HTTP1, HTTP2 and **HTTP3**;
 - Unified middleware and handle interface;
 - Router can be nested infinitely, and multiple middlewares can be attached to any router;
 - Integrated Multipart form processing;
 - Support WebSocket, WebTransport;
 - Support OpenAPI, generate OpenAPI data automatic;
-- Support Acme, automatically get TLS certificate from [let's encrypt](https://letsencrypt.org/).
-- Support Tower service and layer.
+- Support Acme, automatically get TLS certificate from [let's encrypt](https://letsencrypt.org/);
+- Support Tower service and layer;
 
 ## ⚡️ Quick Start
 You can view samples [here](https://github.com/salvo-rs/salvo/tree/main/examples), or view [official website](https://salvo.rs).
@@ -310,7 +310,7 @@ All pull requests are code reviewed and tested by the CI. Note that unless you e
 
 ## ☕ Supporters
 
-Salvo is an open source project. If you want to support Salvo, you can ☕ [**buy a coffee here**](https://ko-fi.com/chrislearn).
+Salvo is an open source project. If you want to support Salvo, you can ☕ [**buy me a coffee here**](https://ko-fi.com/chrislearn).
 
 ## ⚠️ License
 

@@ -11,14 +11,12 @@ use futures_util::task::noop_waker_ref;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_rustls::server::TlsStream;
 
-use crate::async_trait;
 use crate::conn::Holding;
-use crate::conn::{Accepted, Acceptor, IntoConfigStream, Listener};
+use crate::conn::{Accepted, HandshakeStream, Acceptor, IntoConfigStream, Listener};
 use crate::http::uri::Scheme;
 use crate::http::Version;
 
 use super::ServerConfig;
-
 
 /// A wrapper of `Listener` with rustls.
 pub struct RustlsListener<S, C, T, E> {
@@ -45,7 +43,6 @@ where
     }
 }
 
-#[async_trait]
 impl<S, C, T, E> Listener for RustlsListener<S, C, T, E>
 where
     S: IntoConfigStream<C> + Send + 'static,
@@ -111,7 +108,6 @@ where
     }
 }
 
-#[async_trait]
 impl<S, C, T, E> Acceptor for RustlsAcceptor<S, C, T, E>
 where
     S: Stream<Item = C> + Send + Unpin + 'static,
@@ -120,13 +116,12 @@ where
     <T as Acceptor>::Conn: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     E: StdError + Send,
 {
-    type Conn = TlsStream<T::Conn>;
+    type Conn = HandshakeStream<TlsStream<T::Conn>>;
 
     fn holdings(&self) -> &[Holding] {
         &self.holdings
     }
 
-    #[inline]
     async fn accept(&mut self) -> IoResult<Accepted<Self::Conn>> {
         let config = {
             let mut config = None;
@@ -161,12 +156,8 @@ where
             http_version,
             http_scheme,
         } = self.inner.accept().await?;
-        let conn = tls_acceptor
-            .accept(conn)
-            .await
-            .map_err(|e| IoError::new(ErrorKind::Other, e.to_string()))?;
         Ok(Accepted {
-            conn,
+            conn: HandshakeStream::new(tls_acceptor.accept(conn)),
             local_addr,
             remote_addr,
             http_version,

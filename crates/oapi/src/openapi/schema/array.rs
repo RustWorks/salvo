@@ -34,8 +34,8 @@ pub struct Array {
     pub example: Option<Value>,
 
     /// Default value which is provided when user has not provided the input in Swagger UI.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default: Option<Value>,
+    #[serde(rename = "default", skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<Value>,
 
     /// Max length of the array.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -69,7 +69,7 @@ impl Default for Array {
             description: Default::default(),
             deprecated: Default::default(),
             example: Default::default(),
-            default: Default::default(),
+            default_value: Default::default(),
             max_items: Default::default(),
             min_items: Default::default(),
             xml: Default::default(),
@@ -125,8 +125,8 @@ impl Array {
     }
 
     /// Add or change default value for the object which is provided when user has not provided the input in Swagger UI.
-    pub fn default(mut self, default: Value) -> Self {
-        self.default = Some(default);
+    pub fn default_value(mut self, default: Value) -> Self {
+        self.default_value = Some(default);
         self
     }
 
@@ -184,5 +184,64 @@ where
     /// Convert a type to [`Array`].
     fn to_array(self) -> Array {
         Array::new(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_json_diff::assert_json_eq;
+    use serde_json::json;
+
+    use super::*;
+    use crate::{Object, SchemaType};
+
+    #[test]
+    fn test_build_array() {
+        let array = Array::new(Object::with_type(SchemaType::Object))
+            .items(Object::with_type(SchemaType::String))
+            .title("title")
+            .description("description")
+            .deprecated(Deprecated::False)
+            .example(Value::String("example".to_string()))
+            .default_value(Value::String("default".to_string()))
+            .max_items(10)
+            .min_items(1)
+            .unique_items(true)
+            .xml(Xml::new())
+            .nullable(false);
+
+        assert_json_eq!(
+            array,
+            json!({
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "title": "title",
+                "description": "description",
+                "deprecated": false,
+                "example": "example",
+                "default": "default",
+                "maxItems": 10,
+                "minItems": 1,
+                "uniqueItems": true,
+                "xml": {},
+            })
+        )
+    }
+
+    #[test]
+    fn test_schema_from_array() {
+        let array = Array::default();
+        let schema = Schema::from(array);
+        assert_json_eq!(
+            schema,
+            json!({
+                "type": "array",
+                "items": {
+                    "type": "object"
+                }
+            })
+        )
     }
 }

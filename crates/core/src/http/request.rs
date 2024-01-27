@@ -140,18 +140,18 @@ impl Request {
 
         // Set the request cookies, if they exist.
         #[cfg(feature = "cookie")]
-        let cookies = if let Some(header) = headers.get("Cookie") {
+        let cookies = {
             let mut cookie_jar = CookieJar::new();
-            if let Ok(header) = header.to_str() {
-                for cookie_str in header.split(';').map(|s| s.trim()) {
-                    if let Ok(cookie) = Cookie::parse_encoded(cookie_str).map(|c| c.into_owned()) {
-                        cookie_jar.add_original(cookie);
+            for header in headers.get_all(http::header::COOKIE) {
+                if let Ok(header) = header.to_str() {
+                    for cookie_str in header.split(';').map(|s| s.trim()) {
+                        if let Ok(cookie) = Cookie::parse_encoded(cookie_str).map(|c| c.into_owned()) {
+                            cookie_jar.add_original(cookie);
+                        }
                     }
                 }
             }
             cookie_jar
-        } else {
-            CookieJar::new()
         };
 
         Request {
@@ -177,7 +177,6 @@ impl Request {
 
     /// Strip the request to [`hyper::Request`].
     #[doc(hidden)]
-    #[inline]
     pub fn strip_to_hyper<QB>(&mut self) -> Result<hyper::Request<QB>, crate::Error>
     where
         QB: TryFrom<ReqBody>,
@@ -202,7 +201,6 @@ impl Request {
 
     /// Merge data from [`hyper::Request`].
     #[doc(hidden)]
-    #[inline]
     pub fn merge_hyper(&mut self, hyper_req: hyper::Request<ReqBody>) {
         let (
             http::request::Parts {
@@ -448,7 +446,6 @@ impl Request {
             matches!((self.method(), protocol), (&Method::CONNECT, Some(p)) if p == &salvo_http3::ext::Protocol::WEB_TRANSPORT)
         }
 
-        #[inline]
         /// Try to get a WebTransport session from the request.
         pub async fn web_transport_mut(&mut self) -> Result<&mut crate::proto::WebTransportSession<salvo_http3::http3_quinn::Connection, Bytes>, crate::Error> {
             if self.is_wt_connect() {
@@ -577,7 +574,7 @@ impl Request {
         })
     }
     /// Get mutable queries reference.
-    pub fn queries_mut(&mut self) -> &MultiMap<String, String> {
+    pub fn queries_mut(&mut self) -> &mut MultiMap<String, String> {
         let _ = self.queries();
         self.queries.get_mut().unwrap()
     }
@@ -714,7 +711,7 @@ impl Request {
     #[inline]
     pub async fn extract<'de, T>(&'de mut self) -> Result<T, ParseError>
     where
-        T: Extractible<'de> + Send,
+        T: Extractible<'de> + Deserialize<'de> + Send,
     {
         self.extract_with_metadata(T::metadata()).await
     }
@@ -832,7 +829,6 @@ impl Request {
     }
 
     /// Parse json body or form body as type `T` from request with max size.
-    #[inline]
     pub async fn parse_body_with_max_size<'de, T>(&'de mut self, max_size: usize) -> Result<T, ParseError>
     where
         T: Deserialize<'de>,

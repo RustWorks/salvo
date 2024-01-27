@@ -12,6 +12,7 @@
 
 use std::convert::{Infallible, TryFrom};
 use std::error::Error as StdError;
+use std::future::Future;
 
 use hyper::upgrade::OnUpgrade;
 use percent_encoding::{utf8_percent_encode, CONTROLS};
@@ -36,12 +37,15 @@ pub(crate) fn encode_url_path(path: &str) -> String {
 }
 
 /// Client trait.
-#[async_trait]
 pub trait Client: Send + Sync + 'static {
     /// Error type.
     type Error: StdError + Send + Sync + 'static;
     /// Elect a upstream to process current request.
-    async fn execute(&self, req: HyperRequest, upgraded: Option<OnUpgrade>) -> Result<HyperResponse, Self::Error>;
+    fn execute(
+        &self,
+        req: HyperRequest,
+        upgraded: Option<OnUpgrade>,
+    ) -> impl Future<Output = Result<HyperResponse, Self::Error>> + Send;
 }
 
 /// Upstreams trait.
@@ -49,25 +53,25 @@ pub trait Upstreams: Send + Sync + 'static {
     /// Error type.
     type Error: StdError + Send + Sync + 'static;
     /// Elect a upstream to process current request.
-    fn elect(&self) -> Result<&str, Self::Error>;
+    fn elect(&self) -> impl Future<Output = Result<&str, Self::Error>> + Send;
 }
 impl Upstreams for &'static str {
     type Error = Infallible;
 
-    fn elect(&self) -> Result<&str, Self::Error> {
+    async fn elect(&self) -> Result<&str, Self::Error> {
         Ok(*self)
     }
 }
 impl Upstreams for String {
     type Error = Infallible;
-    fn elect(&self) -> Result<&str, Self::Error> {
+    async fn elect(&self) -> Result<&str, Self::Error> {
         Ok(self.as_str())
     }
 }
 
 impl<const N: usize> Upstreams for [&'static str; N] {
     type Error = Error;
-    fn elect(&self) -> Result<&str, Self::Error> {
+    async fn elect(&self) -> Result<&str, Self::Error> {
         if self.is_empty() {
             return Err(Error::other("upstreams is empty"));
         }
@@ -81,7 +85,7 @@ where
     T: AsRef<str> + Send + Sync + 'static,
 {
     type Error = Error;
-    fn elect(&self) -> Result<&str, Self::Error> {
+    async fn elect(&self) -> Result<&str, Self::Error> {
         if self.is_empty() {
             return Err(Error::other("upstreams is empty"));
         }
@@ -192,9 +196,8 @@ where
         &mut self.client
     }
 
-    #[inline]
-    fn build_proxied_request(&self, req: &mut Request, depot: &Depot) -> Result<HyperRequest, Error> {
-        let upstream = self.upstreams.elect().map_err(Error::other)?;
+    async fn build_proxied_request(&self, req: &mut Request, depot: &Depot) -> Result<HyperRequest, Error> {
+        let upstream = self.upstreams.elect().await.map_err(Error::other)?;
         if upstream.is_empty() {
             tracing::error!("upstreams is empty");
             return Err(Error::other("upstreams is empty"));
@@ -215,6 +218,8 @@ where
             format!("{}{}", upstream.trim_end_matches('/'), rest)
         } else if upstream.ends_with('/') || rest.starts_with('/') {
             format!("{}{}", upstream, rest)
+        } else if rest.is_empty() {
+            upstream.to_string()
         } else {
             format!("{}/{}", upstream, rest)
         };
@@ -257,9 +262,8 @@ where
     U::Error: Into<BoxedError>,
     C: Client,
 {
-    #[inline]
-    async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
-        match self.build_proxied_request(req, depot) {
+    async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, _ctrl: &mut FlowCtrl) {
+        match self.build_proxied_request(req, depot).await {
             Ok(proxied_request) => {
                 match self
                     .client
@@ -278,7 +282,11 @@ where
                             body,
                         ) = response.into_parts();
                         res.status_code(status);
-                        res.set_headers(headers);
+                        for (name, value) in headers {
+                            if let Some(name) = name {
+                                res.headers.insert(name, value);
+                            }
+                        }
                         res.body(body);
                     }
                     Err(e) => {
@@ -290,10 +298,6 @@ where
             Err(e) => {
                 tracing::error!(error = ?e, "build proxied request failed");
             }
-        }
-        if ctrl.has_next() {
-            tracing::error!("all handlers after proxy will skipped");
-            ctrl.skip_rest();
         }
     }
 }
@@ -328,11 +332,11 @@ mod tests {
         assert_eq!(encoded_path, "/test/path");
     }
 
-    #[test]
-    fn test_upstreams_elect() {
+    #[tokio::test]
+    async fn test_upstreams_elect() {
         let upstreams = vec!["https://www.example.com", "https://www.example2.com"];
         let proxy = Proxy::default_hyper_client(upstreams.clone());
-        let elected_upstream = proxy.upstreams().elect().unwrap();
+        let elected_upstream = proxy.upstreams().elect().await.unwrap();
         assert!(upstreams.contains(&elected_upstream));
     }
 

@@ -19,7 +19,7 @@ pub type AppResult<T> = Result<T, Error>;
 
 #[async_trait]
 impl Writer for Error {
-    async fn write(mut self, _req: &mut Request, _depot: &mut Depot, _res: &mut Response) {}
+    async fn write(self, _req: &mut Request, _depot: &mut Depot, _res: &mut Response) {}
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -35,7 +35,7 @@ static MONGODB_CLIENT: OnceCell<Client> = OnceCell::new();
 
 #[inline]
 pub fn get_mongodb_client() -> &'static Client {
-    unsafe { MONGODB_CLIENT.get_unchecked() }
+    MONGODB_CLIENT.get().unwrap()
 }
 
 #[handler]

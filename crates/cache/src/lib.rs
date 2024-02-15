@@ -14,9 +14,6 @@
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(unreachable_pub)]
-#![forbid(unsafe_code)]
-#![warn(missing_docs)]
 
 use std::borrow::Borrow;
 use std::collections::VecDeque;
@@ -231,7 +228,22 @@ impl CachedEntry {
     }
 }
 
-/// A constructed via `salvo_cache::Cache::builder()`.
+/// Cache middleware.
+///
+/// # Example
+///
+/// ```
+/// use std::time::Duration;
+///
+/// use salvo_core::Router;
+/// use salvo_cache::{Cache, MokaStore, RequestIssuer};
+///
+/// let cache = Cache::new(
+///     MokaStore::builder().time_to_live(Duration::from_secs(60)).build(),
+///     RequestIssuer::default(),
+/// );
+/// let router = Router::new().hoop(cache);
+/// ```
 #[non_exhaustive]
 pub struct Cache<S, I> {
     /// Cache store.

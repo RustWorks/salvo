@@ -9,12 +9,11 @@ homepage = { workspace = true }
 repository = { workspace = true }
 keywords = ["http", "async", "openapi", "swagger"]
 categories = ["network-programming", "asynchronous"]
-authors = ["Chrislearn Young <chislearn@hotmail.com>"]
+authors = ["Chrislearn Young <chris@acroidea.com>"]
 
 [dependencies]
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
-proc-macro-error = { workspace = true }
 syn = { workspace = true, features = ["full", "extra-traits"] }
 
 [lints]

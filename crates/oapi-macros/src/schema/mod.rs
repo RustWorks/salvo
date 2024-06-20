@@ -1,16 +1,17 @@
-use std::borrow::Cow;
-
-use proc_macro2::{Ident, TokenStream};
-use proc_macro_error::abort;
-use quote::{quote, ToTokens};
-use syn::{parse_quote, Attribute, Data, Fields, FieldsNamed, FieldsUnnamed, Generics};
-
 mod enum_schemas;
 mod enum_variant;
 mod feature;
 mod flattened_map_schema;
 mod struct_schemas;
 mod xml;
+
+use std::borrow::Cow;
+
+use proc_macro2::{Ident, TokenStream};
+use quote::{quote, ToTokens};
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
+use syn::{parse_quote, Attribute, Data, DeriveInput, Fields, FieldsNamed, FieldsUnnamed, Generics, Visibility};
 
 pub(crate) use self::{
     enum_schemas::*,
@@ -20,69 +21,89 @@ pub(crate) use self::{
     xml::XmlAttr,
 };
 
-use super::{
-    feature::{pop_feature_as_inner, Feature, FeaturesExt, IntoInner},
-    ComponentSchema, FieldRename, VariantRename,
+use super::{ComponentSchema, FieldRename, VariantRename};
+use crate::feature::{
+    pop_feature, pop_feature_as_inner, Alias, Bound, Description, Feature, FeaturesExt, Inline, Name, SkipBound,
 };
-use crate::bound;
-use crate::feature::{Bound, Inline, SkipBound, Symbol};
+use crate::schema::feature::EnumFeatures;
 use crate::serde_util::SerdeValue;
+use crate::{bound, DiagLevel, DiagResult, Diagnostic, IntoInner, TryToTokens};
+
+pub(crate) fn to_schema(input: DeriveInput) -> DiagResult<TokenStream> {
+    let DeriveInput {
+        attrs,
+        ident,
+        data,
+        generics,
+        vis,
+        ..
+    } = input;
+    ToSchema::new(&attrs, &data, &ident, &generics, &vis).and_then(|s| s.try_to_token_stream())
+}
 
 pub(crate) struct ToSchema<'a> {
     ident: &'a Ident,
     attributes: &'a [Attribute],
     generics: &'a Generics,
     data: &'a Data,
-    // vis: &'a Visibility,
+    // aliases: Option<Punctuated<AliasSchema, Comma>>,
+    //vis: &'a Visibility,
 }
 
 impl<'a> ToSchema<'a> {
     pub(crate) fn new(
-        data: &'a Data,
         attributes: &'a [Attribute],
+        data: &'a Data,
         ident: &'a Ident,
         generics: &'a Generics,
-        // vis: &'a Visibility,
-    ) -> Self {
-        Self {
+        _vis: &'a Visibility,
+    ) -> DiagResult<Self> {
+        Ok(Self {
             data,
             ident,
             attributes,
             generics,
+            // aliases,
             // vis,
-        }
+        })
     }
 }
 
-impl ToTokens for ToSchema<'_> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+impl TryToTokens for ToSchema<'_> {
+    fn try_to_tokens(&self, tokens: &mut TokenStream) -> DiagResult<()> {
         let oapi = crate::oapi_crate();
         let ident = self.ident;
-        let mut variant = SchemaVariant::new(self.data, self.attributes, ident, self.generics);
+        let mut variant = SchemaVariant::new(
+            self.data,
+            self.attributes,
+            ident,
+            self.generics,
+            // None::<Vec<(TypeTree, &TypeTree)>>,
+        )?;
+
+        let aliases = variant.aliases();
 
         let (_, ty_generics, _) = self.generics.split_for_impl();
-
         let inline = variant.inline().as_ref().map(|i| i.0).unwrap_or(false);
-        let symbol = if inline {
-            None
-        } else if let Some(symbol) = variant.symbol() {
-            if self.generics.type_params().next().is_none() {
-                Some(quote! { #symbol.to_string().replace(" :: ", ".") })
-            } else {
-                Some(quote! {
-                   {
-                       let full_name = std::any::type_name::<#ident #ty_generics>();
-                       if let Some((_, args)) = full_name.split_once('<') {
-                           format!("{}<{}", #symbol, args)
-                       } else {
-                           full_name.into()
-                       }
-                   }
-                })
-            }
-        } else {
-            Some(quote! { std::any::type_name::<#ident #ty_generics>().replace("::", ".") })
-        };
+
+        let type_aliases = aliases
+            .as_ref()
+            .map(|aliases| {
+                aliases
+                    .iter()
+                    .map(|alias| {
+                        let name = quote::format_ident!("{}", alias.name).to_string();
+                        let ty = &alias.ty;
+
+                        Ok(quote! {
+                            if ::std::any::TypeId::of::<Self>() == ::std::any::TypeId::of::<#ty>() {
+                                name = Some(#oapi::oapi::naming::assign_name::<#ty>(#oapi::oapi::naming::NameRule::Force(#name)));
+                            }
+                        })
+                    })
+                    .collect::<DiagResult<TokenStream>>()
+            })
+            .transpose()?;
 
         let skip_bound = variant.pop_skip_bound();
         let bound = if skip_bound == Some(SkipBound(true)) {
@@ -101,17 +122,43 @@ impl ToTokens for ToSchema<'_> {
 
         let (impl_generics, _, where_clause) = generics.split_for_impl();
 
-        let body = match symbol {
+        let name_rule = if inline {
+            None
+        } else if let Some(name) = variant.name() {
+            let name = name.0.path.to_token_stream();
+            let name = quote!(#name).to_string();
+            Some(quote! { #oapi::oapi::naming::NameRule::Force(#name) })
+        } else {
+            Some(quote! { #oapi::oapi::naming::NameRule::Auto })
+        };
+        let variant = variant.try_to_token_stream()?;
+        let body = match name_rule {
             None => {
                 quote! {
                     #variant.into()
                 }
             }
-            Some(symbol) => {
+            Some(name_rule) => {
+                let name_tokens = if type_aliases.is_some() {
+                    quote! {
+                        let mut name = None;
+                        #type_aliases
+                        let name = name.unwrap_or_else(||#oapi::oapi::naming::assign_name::<#ident #ty_generics>(#name_rule));
+                    }
+                } else {
+                    quote! {
+                        let name = #oapi::oapi::naming::assign_name::<#ident #ty_generics>(#name_rule);
+                    }
+                };
                 quote! {
-                    let schema = #variant;
-                    components.schemas.insert(#symbol, schema.into());
-                    #oapi::oapi::RefOr::Ref(#oapi::oapi::Ref::new(format!("#/components/schemas/{}", #symbol)))
+                    #name_tokens
+                    let ref_or = #oapi::oapi::RefOr::Ref(#oapi::oapi::Ref::new(format!("#/components/schemas/{}", name)));
+                    if !components.schemas.contains_key(&name) {
+                        components.schemas.insert(name.clone(), ref_or.clone());
+                        let schema = #variant;
+                        components.schemas.insert(name, schema);
+                    }
+                    ref_or
                 }
             }
         };
@@ -121,7 +168,8 @@ impl ToTokens for ToSchema<'_> {
                     #body
                 }
             }
-        })
+        });
+        Ok(())
     }
 }
 
@@ -139,69 +187,111 @@ impl<'a> SchemaVariant<'a> {
         attributes: &'a [Attribute],
         ident: &'a Ident,
         generics: &'a Generics,
-    ) -> SchemaVariant<'a> {
+    ) -> DiagResult<SchemaVariant<'a>> {
         match data {
             Data::Struct(content) => match &content.fields {
                 Fields::Unnamed(fields) => {
                     let FieldsUnnamed { unnamed, .. } = fields;
-                    let mut unnamed_features = attributes.parse_features::<UnnamedFieldStructFeatures>().into_inner();
+                    let mut unnamed_features = attributes.parse_features::<UnnamedFieldStructFeatures>()?.into_inner();
 
-                    let symbol = pop_feature_as_inner!(unnamed_features => Feature::Symbol(_v));
+                    let name = pop_feature_as_inner!(unnamed_features => Feature::Name(_v));
+                    let aliases = pop_feature_as_inner!(unnamed_features => Feature::Aliases(_v));
+                    if generics.type_params().count() == 0 && !aliases.as_ref().map(|a| a.0.is_empty()).unwrap_or(true)
+                    {
+                        return Err(Diagnostic::spanned(
+                            ident.span(),
+                            DiagLevel::Error,
+                            "aliases are only allowed for generic types",
+                        ));
+                    }
+
                     let inline = pop_feature_as_inner!(unnamed_features => Feature::Inline(_v));
-                    Self::Unnamed(UnnamedStructSchema {
+                    let description = pop_feature!(unnamed_features => Feature::Description(_)).into_inner();
+                    Ok(Self::Unnamed(UnnamedStructSchema {
                         struct_name: Cow::Owned(ident.to_string()),
                         attributes,
+                        description,
                         features: unnamed_features,
                         fields: unnamed,
-                        symbol,
+                        name,
+                        aliases: aliases.map(|a| a.0),
                         inline,
-                    })
+                    }))
                 }
                 Fields::Named(fields) => {
                     let FieldsNamed { named, .. } = fields;
-                    let mut named_features = attributes.parse_features::<NamedFieldStructFeatures>().into_inner();
-                    let symbol = pop_feature_as_inner!(named_features => Feature::Symbol(_v));
-                    let inline = pop_feature_as_inner!(named_features => Feature::Inline(_v));
+                    let mut named_features: Option<Vec<Feature>> =
+                        attributes.parse_features::<NamedFieldStructFeatures>()?.into_inner();
 
-                    Self::Named(NamedStructSchema {
+                    let generic_count = generics.type_params().count();
+                    let name = pop_feature_as_inner!(named_features => Feature::Name(_v));
+                    let aliases = pop_feature_as_inner!(named_features => Feature::Aliases(_v));
+                    if generic_count == 0 && !aliases.as_ref().map(|a| a.0.is_empty()).unwrap_or(true) {
+                        return Err(Diagnostic::spanned(
+                            ident.span(),
+                            DiagLevel::Error,
+                            "aliases are only allowed for generic types",
+                        ));
+                    }
+
+                    let inline = pop_feature_as_inner!(named_features => Feature::Inline(_v));
+                    let description = pop_feature!(named_features => Feature::Description(_)).into_inner();
+                    Ok(Self::Named(NamedStructSchema {
                         struct_name: Cow::Owned(ident.to_string()),
                         attributes,
+                        description,
                         rename_all: named_features.pop_rename_all_feature(),
                         features: named_features,
                         fields: named,
                         generics: Some(generics),
-                        symbol,
+                        name,
+                        aliases: aliases.map(|a| a.0),
                         inline,
-                    })
+                    }))
                 }
-                Fields::Unit => Self::Unit(UnitStructVariant),
+                Fields::Unit => Ok(Self::Unit(UnitStructVariant)),
             },
-            Data::Enum(content) => Self::Enum(EnumSchema::new(
-                Cow::Owned(ident.to_string()),
-                &content.variants,
-                attributes,
-            )),
-            _ => abort!(
+            Data::Enum(content) => {
+                let mut enum_features: Option<Vec<Feature>> = attributes.parse_features::<EnumFeatures>()?.into_inner();
+                let aliases = pop_feature_as_inner!(enum_features => Feature::Aliases(_v));
+                Ok(Self::Enum(EnumSchema::new(
+                    Cow::Owned(ident.to_string()),
+                    &content.variants,
+                    attributes,
+                    aliases.map(|a| a.0),
+                    Some(generics),
+                )?))
+            }
+            _ => Err(Diagnostic::spanned(
                 ident.span(),
-                "unexpected data type, expected syn::Data::Struct or syn::Data::Enum"
-            ),
+                DiagLevel::Error,
+                "unexpected data type, expected syn::Data::Struct or syn::Data::Enum",
+            )),
         }
     }
 
-    fn symbol(&self) -> &Option<Symbol> {
+    fn name(&self) -> Option<&Name> {
         match self {
-            Self::Enum(schema) => &schema.symbol,
-            Self::Named(schema) => &schema.symbol,
-            Self::Unnamed(schema) => &schema.symbol,
-            _ => &None,
+            Self::Enum(schema) => schema.name.as_ref(),
+            Self::Named(schema) => schema.name.as_ref(),
+            Self::Unnamed(schema) => schema.name.as_ref(),
+            _ => None,
         }
     }
-    fn inline(&self) -> &Option<Inline> {
+    fn inline(&self) -> Option<&Inline> {
         match self {
-            Self::Enum(schema) => &schema.inline,
-            Self::Named(schema) => &schema.inline,
-            Self::Unnamed(schema) => &schema.inline,
-            _ => &None,
+            Self::Enum(schema) => schema.inline.as_ref(),
+            Self::Named(schema) => schema.inline.as_ref(),
+            Self::Unnamed(schema) => schema.inline.as_ref(),
+            _ => None,
+        }
+    }
+    fn aliases(&self) -> Option<&Punctuated<Alias, Comma>> {
+        match self {
+            Self::Enum(schema) => schema.aliases.as_ref(),
+            Self::Named(schema) => schema.aliases.as_ref(),
+            Self::Unnamed(schema) => schema.aliases.as_ref(),
+            _ => None,
         }
     }
     fn pop_skip_bound(&mut self) -> Option<SkipBound> {
@@ -222,13 +312,16 @@ impl<'a> SchemaVariant<'a> {
     }
 }
 
-impl ToTokens for SchemaVariant<'_> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+impl TryToTokens for SchemaVariant<'_> {
+    fn try_to_tokens(&self, tokens: &mut TokenStream) -> DiagResult<()> {
         match self {
-            Self::Enum(schema) => schema.to_tokens(tokens),
-            Self::Named(schema) => schema.to_tokens(tokens),
-            Self::Unnamed(schema) => schema.to_tokens(tokens),
-            Self::Unit(unit) => unit.to_tokens(tokens),
+            Self::Enum(schema) => schema.try_to_tokens(tokens),
+            Self::Named(schema) => schema.try_to_tokens(tokens),
+            Self::Unnamed(schema) => schema.try_to_tokens(tokens),
+            Self::Unit(unit) => {
+                unit.to_tokens(tokens);
+                Ok(())
+            }
         }
     }
 }
@@ -237,9 +330,9 @@ impl ToTokens for SchemaVariant<'_> {
 struct UnitStructVariant;
 
 impl ToTokens for UnitStructVariant {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+    fn to_tokens(&self, stream: &mut TokenStream) {
         let oapi = crate::oapi_crate();
-        tokens.extend(quote! {
+        stream.extend(quote! {
             #oapi::oapi::schema::empty()
         });
     }
@@ -252,33 +345,39 @@ enum Property {
     FlattenedMap(FlattenedMapSchema),
 }
 
-impl ToTokens for Property {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+impl TryToTokens for Property {
+    fn try_to_tokens(&self, tokens: &mut TokenStream) -> DiagResult<()> {
         match self {
-            Self::Schema(schema) => schema.to_tokens(tokens),
-            Self::FlattenedMap(schema) => schema.to_tokens(tokens),
-            Self::SchemaWith(with_schema) => with_schema.to_tokens(tokens),
+            Self::Schema(schema) => {
+                schema.to_tokens(tokens);
+                Ok(())
+            }
+            Self::FlattenedMap(schema) => {
+                schema.to_tokens(tokens);
+                Ok(())
+            }
+            Self::SchemaWith(with_schema) => with_schema.try_to_tokens(tokens),
         }
     }
 }
 
 trait SchemaFeatureExt {
-    fn split_for_symbol(self) -> (Vec<Feature>, Vec<Feature>);
+    fn split_for_title(self) -> (Vec<Feature>, Vec<Feature>);
 }
 
 impl SchemaFeatureExt for Vec<Feature> {
-    fn split_for_symbol(self) -> (Vec<Feature>, Vec<Feature>) {
+    fn split_for_title(self) -> (Vec<Feature>, Vec<Feature>) {
         self.into_iter()
-            .partition(|feature| matches!(feature, Feature::Symbol(_)))
+            .partition(|feature| matches!(feature, Feature::Title(_)))
     }
 }
 
 #[inline]
-fn is_not_skipped(rule: &Option<SerdeValue>) -> bool {
-    rule.as_ref().map(|value| !value.skip).unwrap_or(true)
+fn is_not_skipped(rule: Option<&SerdeValue>) -> bool {
+    rule.map(|value| !value.skip).unwrap_or(true)
 }
 
 #[inline]
-fn is_flatten(rule: &Option<SerdeValue>) -> bool {
-    rule.as_ref().map(|value| value.flatten).unwrap_or(false)
+fn is_flatten(rule: Option<&SerdeValue>) -> bool {
+    rule.map(|value| value.flatten).unwrap_or(false)
 }

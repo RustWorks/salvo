@@ -1,26 +1,42 @@
 use std::{borrow::Cow, fmt::Display};
 
-use proc_macro2::{Ident, Span, TokenStream};
-use proc_macro_error::abort;
+use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
-use syn::{
-    parenthesized,
-    parse::{Parse, ParseBuffer, ParseStream},
-    Error, ExprPath, LitStr, Token,
-};
+use syn::parenthesized;
+use syn::parse::{Parse, ParseBuffer, ParseStream};
+use syn::{DeriveInput, Error, ExprPath, LitStr, Token};
 
-pub(crate) mod derive;
+mod derive;
+use derive::ToParameters;
 
 use crate::{
     component::{self, ComponentSchema},
     feature::{
         parse_features, AllowReserved, Description, Example, ExclusiveMaximum, ExclusiveMinimum, Explode, Feature,
         Format, MaxItems, MaxLength, Maximum, MinItems, MinLength, Minimum, MultipleOf, Nullable, Pattern, ReadOnly,
-        Style, ToTokensExt, WriteOnly, XmlAttr,
+        Style, TryToTokensExt, WriteOnly, XmlAttr,
     },
     operation::InlineType,
     parse_utils, Required,
 };
+use crate::{DiagLevel, DiagResult, Diagnostic, TryToTokens};
+
+pub(crate) fn to_parameters(input: DeriveInput) -> DiagResult<TokenStream> {
+    let DeriveInput {
+        attrs,
+        ident,
+        data,
+        generics,
+        ..
+    } = input;
+    ToParameters {
+        attrs,
+        generics,
+        data,
+        ident,
+    }
+    .try_to_token_stream()
+}
 
 /// Parameter of request such as in path, header, query or cookie
 ///
@@ -50,12 +66,13 @@ impl Parse for Parameter<'_> {
     }
 }
 
-impl ToTokens for Parameter<'_> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+impl TryToTokens for Parameter<'_> {
+    fn try_to_tokens(&self, tokens: &mut TokenStream) -> DiagResult<()> {
         let oapi = crate::oapi_crate();
         match self {
             Parameter::Value(parameter) => {
                 if parameter.parameter_in.is_none() {
+                    let parameter = parameter.try_to_token_stream()?;
                     tokens.extend(quote!{
                         {
                             let mut new_parameter = #parameter;
@@ -68,6 +85,7 @@ impl ToTokens for Parameter<'_> {
                         }
                     });
                 } else {
+                    let parameter = parameter.try_to_token_stream()?;
                     tokens.extend(quote! { operation.parameters.insert(#parameter); })
                 }
             }
@@ -77,6 +95,7 @@ impl ToTokens for Parameter<'_> {
                 );
             }),
         }
+        Ok(())
     }
 }
 
@@ -86,15 +105,15 @@ struct ParameterSchema<'p> {
     features: Vec<Feature>,
 }
 
-impl ToTokens for ParameterSchema<'_> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+impl TryToTokens for ParameterSchema<'_> {
+    fn try_to_tokens(&self, tokens: &mut TokenStream) -> DiagResult<()> {
         let mut to_tokens = |param_schema, required| {
             tokens.extend(quote! { .schema(#param_schema).required(#required) });
         };
 
         match &self.parameter_type {
             ParameterType::Parsed(inline_type) => {
-                let type_tree = inline_type.as_type_tree();
+                let type_tree = inline_type.as_type_tree()?;
                 let required: Required = (!type_tree.is_option()).into();
                 let mut schema_features = Vec::<Feature>::new();
                 schema_features.clone_from(&self.features);
@@ -107,12 +126,12 @@ impl ToTokens for ParameterSchema<'_> {
                         description: None,
                         deprecated: None,
                         object_name: "",
-                        type_definition: false,
-                    }),
+                    })?,
                     required,
                 )
             }
         }
+        Ok(())
     }
 }
 
@@ -162,7 +181,7 @@ impl Parse for ValueParameter<'_> {
 
         if input.fork().parse::<ParameterIn>().is_ok() {
             parameter.parameter_in = Some(input.parse()?);
-            input.parse::<Token![,]>()?;
+            input.parse::<Token![,]>().ok();
         }
 
         let (schema_features, parameter_features) = input.parse::<ParameterFeatures>()?.split_for_parameter_type();
@@ -249,8 +268,8 @@ impl ParameterFeatures {
 
 // impl_into_inner!(ParameterFeatures);
 
-impl ToTokens for ValueParameter<'_> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+impl TryToTokens for ValueParameter<'_> {
+    fn try_to_tokens(&self, tokens: &mut TokenStream) -> DiagResult<()> {
         let oapi = crate::oapi_crate();
         let name = &*self.name;
         tokens.extend(quote! {
@@ -261,19 +280,20 @@ impl ToTokens for ValueParameter<'_> {
         }
 
         let (schema_features, param_features) = &self.features;
-        tokens.extend(param_features.to_token_stream());
+        tokens.extend(param_features.try_to_token_stream()?);
         if !schema_features.is_empty() && self.parameter_schema.is_none() {
-            abort!(
-                Span::call_site(),
-                "Missing `parameter_type` attribute, cannot define schema features without it.";
-                help = "See docs for more details <https://docs.rs/salvo_oapi/latest/salvo_oapi/attr.path.html#parameter-type-attributes>"
-
+            return  Err(Diagnostic::new(
+               DiagLevel::Error,
+                "Missing `parameter_type` attribute, cannot define schema features without it.").help(
+                    "See docs for more details <https://docs.rs/salvo_oapi/latest/salvo_oapi/attr.path.html#parameter-type-attributes>"
+                )
             );
         }
 
         if let Some(parameter_schema) = &self.parameter_schema {
-            parameter_schema.to_tokens(tokens);
+            parameter_schema.try_to_tokens(tokens)?;
         }
+        Ok(())
     }
 }
 
@@ -327,9 +347,9 @@ impl Parse for ParameterIn {
 }
 
 impl ToTokens for ParameterIn {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+    fn to_tokens(&self, stream: &mut TokenStream) {
         let oapi = crate::oapi_crate();
-        tokens.extend(match self {
+        stream.extend(match self {
             Self::Path => quote! { #oapi::oapi::parameter::ParameterIn::Path },
             Self::Query => quote! { #oapi::oapi::parameter::ParameterIn::Query },
             Self::Header => quote! { #oapi::oapi::parameter::ParameterIn::Header },
@@ -370,20 +390,20 @@ impl Parse for ParameterStyle {
 }
 
 impl ToTokens for ParameterStyle {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+    fn to_tokens(&self, stream: &mut proc_macro2::TokenStream) {
         let oapi = crate::oapi_crate();
         match self {
-            ParameterStyle::Matrix => tokens.extend(quote! { #oapi::oapi::parameter::ParameterStyle::Matrix }),
-            ParameterStyle::Label => tokens.extend(quote! { #oapi::oapi::parameter::ParameterStyle::Label }),
-            ParameterStyle::Form => tokens.extend(quote! { #oapi::oapi::parameter::ParameterStyle::Form }),
-            ParameterStyle::Simple => tokens.extend(quote! { #oapi::oapi::parameter::ParameterStyle::Simple }),
+            ParameterStyle::Matrix => stream.extend(quote! { #oapi::oapi::parameter::ParameterStyle::Matrix }),
+            ParameterStyle::Label => stream.extend(quote! { #oapi::oapi::parameter::ParameterStyle::Label }),
+            ParameterStyle::Form => stream.extend(quote! { #oapi::oapi::parameter::ParameterStyle::Form }),
+            ParameterStyle::Simple => stream.extend(quote! { #oapi::oapi::parameter::ParameterStyle::Simple }),
             ParameterStyle::SpaceDelimited => {
-                tokens.extend(quote! { #oapi::oapi::parameter::ParameterStyle::SpaceDelimited })
+                stream.extend(quote! { #oapi::oapi::parameter::ParameterStyle::SpaceDelimited })
             }
             ParameterStyle::PipeDelimited => {
-                tokens.extend(quote! { #oapi::oapi::parameter::ParameterStyle::PipeDelimited })
+                stream.extend(quote! { #oapi::oapi::parameter::ParameterStyle::PipeDelimited })
             }
-            ParameterStyle::DeepObject => tokens.extend(quote! { #oapi::oapi::parameter::ParameterStyle::DeepObject }),
+            ParameterStyle::DeepObject => stream.extend(quote! { #oapi::oapi::parameter::ParameterStyle::DeepObject }),
         }
     }
 }

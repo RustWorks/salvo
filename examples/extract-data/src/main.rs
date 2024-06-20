@@ -44,6 +44,7 @@ async fn edit(req: &mut Request) -> String {
     default_source(from = "body")
 ))]
 struct BadMan<'a> {
+    #[serde(default)]
     id: i64,
     username: &'a str,
     first_name: String,
@@ -55,10 +56,11 @@ struct BadMan<'a> {
     default_source(from = "query"),
     default_source(from = "param"),
     default_source(from = "body"),
-    rename_all = "camelCase"
 ))]
 struct GoodMan<'a> {
+    #[serde(default)]
     id: i64,
+    #[serde(default)]
     username: &'a str,
     first_name: String,
     last_name: &'a str,

@@ -29,6 +29,9 @@ time = ["salvo-oapi-macros/time", "dep:time"]
 smallvec = ["salvo-oapi-macros/smallvec", "dep:smallvec"]
 indexmap = ["salvo-oapi-macros/indexmap"]
 yaml = ["dep:serde_yaml"]
+preserve-order = ["preserve-path-order", "preserve-prop-order"]
+preserve-path-order = []
+preserve-prop-order = []
 
 [dependencies]
 salvo_core = { workspace = true, default-features = false, features = ["cookie", "test"] }
@@ -41,6 +44,7 @@ indexmap = { workspace = true, features = ["serde"] }
 inventory = { workspace = true }
 mime-infer = { workspace = true }
 once_cell = { workspace = true }
+parking_lot = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 regex = { workspace = true }

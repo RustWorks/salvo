@@ -17,7 +17,6 @@ pub(crate) struct SecurityRequirementsAttrItem {
 }
 
 #[derive(Default, Debug)]
-#[cfg_attr(feature = "debug", derive(Debug))]
 pub(crate) struct SecurityRequirementsAttr(Punctuated<SecurityRequirementsAttrItem, Comma>);
 
 impl Parse for SecurityRequirementsAttr {
@@ -47,9 +46,9 @@ impl Parse for SecurityRequirementsAttrItem {
 }
 
 impl ToTokens for SecurityRequirementsAttr {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+    fn to_tokens(&self, stream: &mut TokenStream) {
         let oapi = crate::oapi_crate();
-        tokens.extend(quote! {
+        stream.extend(quote! {
             #oapi::oapi::security::SecurityRequirement::default()
         });
 
@@ -58,7 +57,7 @@ impl ToTokens for SecurityRequirementsAttr {
                 let scopes = scopes.iter().collect::<Array<&String>>();
                 let scopes_len = scopes.len();
 
-                tokens.extend(quote! {
+                stream.extend(quote! {
                     .add::<&str, [&str; #scopes_len], &str>(#name, #scopes)
                 });
             }

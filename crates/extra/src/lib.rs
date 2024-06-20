@@ -1,4 +1,27 @@
-//! The extra lib of Savlo web server framework. Read more: <https://salvo.rs>
+//! Extra features for Savlo web framework.
+//!
+//! This library provides some common web features.
+//!
+//! `salvo_extra` uses a set of [feature flags] to reduce the amount of compiled and
+//! optional dependencies.
+//!
+//! # Feature flags
+//!
+//! | Feature | Description |
+//! | --- | --- |
+//! | [`affix`] | Middleware for adding prefix and suffix to the request path |
+//! | [`basic-auth`](basic_auth) | Middleware for basic authentication |
+//! | [`caching-headers`](caching_headers) | Middleware for setting caching headers |
+//! | [`catch-panic`](catch_panic) | Middleware for catching panics |
+//! | [`concurrency-limiter`](concurrency_limiter) | Middleware for limiting concurrency |
+//! | [`force-https`](force_https) | Middleware for forcing HTTPS |
+//! | [`logging`] | Middleware for logging requests and responses |
+//! | [`request-id`](request_id) | Middleware for setting a request ID |
+//! | [`size-limiter`](size_limiter) | Middleware for limiting request size |
+//! | [`sse`] | Server-Sent Events (SSE) middleware |
+//! | [`timeout`] | Middleware for setting a timeout |
+//! | [`trailing-slash`](trailing_slash) | Middleware for handling trailing slashes |
+//! | [`websocket`] | WebSocket implementation |
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -20,21 +43,11 @@ cfg_feature! {
     #![feature = "force-https"]
     pub mod force_https;
 }
-
-cfg_feature! {
-    #![feature = "jwt-auth"]
-    pub mod jwt_auth;
-}
-
 cfg_feature! {
     #![feature = "catch-panic"]
     pub mod catch_panic;
 }
 
-cfg_feature! {
-    #![feature = "compression"]
-    pub mod compression;
-}
 cfg_feature! {
     #![feature = "logging"]
     pub mod logging;

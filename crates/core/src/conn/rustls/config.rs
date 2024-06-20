@@ -88,20 +88,27 @@ impl Keycert {
             .collect::<Vec<_>>();
 
         let key = {
-            let mut pkcs8 = rustls_pemfile::pkcs8_private_keys(&mut self.key.as_ref())
+            let mut ec = rustls_pemfile::ec_private_keys(&mut self.key.as_ref())
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|_| IoError::new(ErrorKind::Other, "failed to parse tls private keys"))?;
-            if !pkcs8.is_empty() {
-                PrivateKeyDer::Pkcs8(pkcs8.remove(0))
+            if !ec.is_empty() {
+                PrivateKeyDer::Sec1(ec.remove(0))
             } else {
-                let mut rsa = rustls_pemfile::rsa_private_keys(&mut self.key.as_ref())
+                let mut pkcs8 = rustls_pemfile::pkcs8_private_keys(&mut self.key.as_ref())
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(|_| IoError::new(ErrorKind::Other, "failed to parse tls private keys"))?;
-
-                if !rsa.is_empty() {
-                    PrivateKeyDer::Pkcs1(rsa.remove(0))
+                if !pkcs8.is_empty() {
+                    PrivateKeyDer::Pkcs8(pkcs8.remove(0))
                 } else {
-                    return Err(IoError::new(ErrorKind::Other, "failed to parse tls private keys"));
+                    let mut rsa = rustls_pemfile::rsa_private_keys(&mut self.key.as_ref())
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|_| IoError::new(ErrorKind::Other, "failed to parse tls private keys"))?;
+
+                    if !rsa.is_empty() {
+                        PrivateKeyDer::Pkcs1(rsa.remove(0))
+                    } else {
+                        return Err(IoError::new(ErrorKind::Other, "failed to parse tls private keys"));
+                    }
                 }
             }
         };
@@ -244,7 +251,12 @@ impl RustlsConfig {
                 certified_keys,
                 fallback,
             }));
-        config.alpn_protocols = self.alpn_protocols;
+        let mut alpn_protocols = self.alpn_protocols;
+        let h3_alpn = b"h3".to_vec();
+        if !alpn_protocols.contains(&h3_alpn) {
+            alpn_protocols.push(h3_alpn);
+        }
+        config.alpn_protocols = alpn_protocols;
         Ok(config)
     }
 
@@ -271,7 +283,7 @@ cfg_feature! {
         type Error = IoError;
 
         fn try_into(self) -> IoResult<crate::conn::quinn::ServerConfig> {
-            let crypto = quinn::crypto::rustls::QuicServerConfig::try_from(self.build_server_config()?).map_err(|_|IoError::new(ErrorKind::Other, "failed to build quic server config"))?;
+            let crypto = quinn::crypto::rustls::QuicServerConfig::try_from(self.build_server_config()?).map_err(|_|IoError::new(ErrorKind::Other, "failed to build quinn server config"))?;
             Ok(crate::conn::quinn::ServerConfig::with_crypto(Arc::new(crypto)))
         }
     }

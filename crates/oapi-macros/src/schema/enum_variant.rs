@@ -3,11 +3,11 @@ use std::marker::PhantomData;
 
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{parse_quote, TypePath};
+use syn::parse_quote;
 
 use crate::feature::Feature;
 use crate::schema_type::SchemaType;
-use crate::Array;
+use crate::{Array, DiagResult, TryToTokens};
 
 pub(crate) trait Variant {
     /// Implement `ToTokens` conversion for the [`Variant`]
@@ -15,7 +15,13 @@ pub(crate) trait Variant {
 
     /// Get enum variant type. By default enum variant is `string`
     fn get_type(&self) -> (TokenStream, TokenStream) {
-        (SchemaType(&parse_quote!(str)).to_token_stream(), quote! {&str})
+        (
+            match SchemaType(&parse_quote!(str)).try_to_token_stream() {
+                Ok(tokens) => tokens,
+                Err(diag) => diag.emit_as_item_tokens(),
+            },
+            quote! {&str},
+        )
     }
 }
 
@@ -32,32 +38,38 @@ where
     }
 }
 
-pub(crate) struct ReprVariant<'r, T: ToTokens> {
-    pub(crate) value: T,
-    pub(crate) type_path: &'r TypePath,
-}
-
-impl<'r, T> Variant for ReprVariant<'r, T>
-where
-    T: ToTokens,
-{
-    fn to_tokens(&self) -> TokenStream {
-        self.value.to_token_stream()
+cfg_feature! {
+    #![feature ="repr"]
+    pub(crate) struct ReprVariant<'r, T: ToTokens> {
+        pub(crate) value: T,
+        pub(crate) type_path: &'r syn::TypePath,
     }
 
-    fn get_type(&self) -> (TokenStream, TokenStream) {
-        (
-            SchemaType(&self.type_path.path).to_token_stream(),
-            self.type_path.to_token_stream(),
-        )
+    impl<'r, T> Variant for ReprVariant<'r, T>
+    where
+        T: ToTokens,
+    {
+        fn to_tokens(&self) -> TokenStream {
+            self.value.to_token_stream()
+        }
+
+        fn get_type(&self) -> (TokenStream, TokenStream) {
+            (
+                match SchemaType(&self.type_path.path).try_to_token_stream() {
+                    Ok(stream) => stream,
+                    Err(diag) => diag.emit_as_item_tokens(),
+                },
+                self.type_path.to_token_stream(),
+            )
+        }
     }
 }
 
 pub(crate) struct ObjectVariant<'o, T: ToTokens> {
     pub(crate) item: T,
-    pub(crate) symbol: Option<TokenStream>,
-    pub(crate) example: Option<TokenStream>,
     pub(crate) name: Cow<'o, str>,
+    pub(crate) title: Option<TokenStream>,
+    pub(crate) example: Option<TokenStream>,
 }
 
 impl<T> Variant for ObjectVariant<'_, T>
@@ -66,14 +78,14 @@ where
 {
     fn to_tokens(&self) -> TokenStream {
         let oapi = crate::oapi_crate();
-        let symbol = &self.symbol;
+        let name = &self.name;
+        let title = &self.title;
         let example = &self.example;
         let variant = &self.item;
-        let name = &self.name;
 
         quote! {
             #oapi::oapi::schema::Object::new()
-                #symbol
+                #title
                 #example
                 .property(#name, #variant)
                 .required(#name)
@@ -82,7 +94,7 @@ where
 }
 
 pub(crate) struct Enum<'e, V: Variant> {
-    pub(crate) symbol: Option<TokenStream>,
+    pub(crate) title: Option<TokenStream>,
     pub(crate) example: Option<TokenStream>,
     len: usize,
     items: Array<'e, TokenStream>,
@@ -97,8 +109,8 @@ impl<V: Variant> Enum<'_, V> {
         items.into_iter().collect()
     }
 
-    pub(crate) fn symbol<I: Into<TokenStream>>(mut self, symbol: I) -> Self {
-        self.symbol = Some(symbol.into());
+    pub(crate) fn title<I: Into<TokenStream>>(mut self, title: I) -> Self {
+        self.title = Some(title.into());
         self
     }
 
@@ -117,19 +129,19 @@ impl<T> ToTokens for Enum<'_, T>
 where
     T: Variant,
 {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+    fn to_tokens(&self, stream: &mut TokenStream) {
         let oapi = crate::oapi_crate();
         let len = &self.len;
-        let symbol = &self.symbol;
+        let title = &self.title;
         let example = &self.example;
         let items = &self.items;
         let schema_type = &self.schema_type;
         let enum_type = &self.enum_type;
         let description = &self.description;
 
-        tokens.extend(quote! {
+        stream.extend(quote! {
             #oapi::oapi::Object::new()
-                #symbol
+                #title
                 #description
                 #example
                 .schema_type(#schema_type)
@@ -157,7 +169,7 @@ impl<V: Variant> FromIterator<V> for Enum<'_, V> {
             .collect::<Array<TokenStream>>();
 
         Self {
-            symbol: None,
+            title: None,
             example: None,
             description: None,
             len,
@@ -185,12 +197,12 @@ impl<T> ToTokens for TaggedEnum<T>
 where
     T: Variant,
 {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+    fn to_tokens(&self, stream: &mut TokenStream) {
         let oapi = crate::oapi_crate();
         let len = &self.len;
         let items = &self.items;
 
-        tokens.extend(quote! {
+        stream.extend(quote! {
             Into::<#oapi::oapi::schema::OneOf>::into(#oapi::oapi::schema::OneOf::with_capacity(#len))
                 #items
         })
@@ -234,30 +246,31 @@ impl<'t, V: Variant> FromIterator<(Cow<'t, str>, V)> for TaggedEnum<V> {
 }
 
 pub(crate) struct UntaggedEnum {
-    symbol: Option<Feature>,
+    title: Option<Feature>,
 }
 
 impl UntaggedEnum {
     pub(crate) fn new() -> Self {
-        Self { symbol: None }
+        Self { title: None }
     }
 
-    pub(crate) fn with_symbol(symbol: Option<Feature>) -> Self {
-        Self { symbol }
+    pub(crate) fn with_title(title: Option<Feature>) -> Self {
+        Self { title }
     }
 }
 
-impl ToTokens for UntaggedEnum {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+impl TryToTokens for UntaggedEnum {
+    fn try_to_tokens(&self, tokens: &mut TokenStream) -> DiagResult<()> {
         let oapi = crate::oapi_crate();
-        let symbol = &self.symbol;
+        let title = self.title.as_ref().map(|f| f.try_to_token_stream()).transpose()?;
 
         tokens.extend(quote! {
             #oapi::oapi::schema::Object::new()
                 .nullable(true)
                 .default_value(#oapi::oapi::__private::serde_json::Value::Null)
-                #symbol
-        })
+                #title
+        });
+        Ok(())
     }
 }
 
@@ -277,12 +290,12 @@ impl<T> ToTokens for AdjacentlyTaggedEnum<T>
 where
     T: Variant,
 {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+    fn to_tokens(&self, stream: &mut TokenStream) {
         let oapi = crate::oapi_crate();
         let len = &self.len;
         let items = &self.items;
 
-        tokens.extend(quote! {
+        stream.extend(quote! {
             Into::<#oapi::oapi::schema::OneOf>::into(#oapi::oapi::schema::OneOf::with_capacity(#len))
                 #items
         })
@@ -352,9 +365,9 @@ impl<'c, T> ToTokens for CustomEnum<'c, T>
 where
     T: ToTokens,
 {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
+    fn to_tokens(&self, stream: &mut TokenStream) {
         let oapi = crate::oapi_crate();
-        self.items.to_tokens(tokens);
+        self.items.to_tokens(stream);
 
         // currently uses serde `tag` attribute as a discriminator. This discriminator
         // feature needs some refinement.
@@ -364,7 +377,7 @@ where
             }
         });
 
-        tokens.extend(quote! {
+        stream.extend(quote! {
             #discriminator
         });
     }

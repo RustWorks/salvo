@@ -1,6 +1,40 @@
-//!Salvo is a powerful web framework that can make your work easier.
+//! Salvo is a powerful web framework that can make your work easier.
 //!
-//! Read more: <https://salvo.rs>
+//! `salvo` uses a set of [feature flags] to reduce the amount of compiled and
+//! optional dependencies.
+//!
+//! # Feature flags
+//!
+//! | Feature | Description | Default? |
+//! | --- | --- | :---: |
+//! | `cookie` | Support for Cookie | ✔️ |
+//! | `server` | Built-in Server implementation | ✔️ |
+//! | `http1` | Support for HTTP 1.1 protocol | ✔️ |
+//! | `http2` | Support for HTTP 2 protocol | ✔️ |
+//! | `http2-cleartext` | Support for HTTP 2 over cleartext TCP | ❌ |
+//! | `quinn` | Use [quinn](https://crates.io/crates/quinn) to support HTTP 3 protocol | ❌ |
+//! | `test` | Utilities for testing application | ✔️ |
+//! | `acme` | Automatically obtain certificates through ACME | ❌ |
+//! | `rustls` | TLS built on [`rustls`](https://crates.io/crates/rustls) | ❌ |
+//! | `openssl` | TLS built on [`openssl-tls`](https://crates.io/crates/openssl) | ❌ |
+//! | `native-tls` | TLS built on [`native-tls`](https://crates.io/crates/native-tls) | ❌ |
+//! | `unix` | Listener based on unix socket | ❌ |
+//! | `tower-compat` | Adapters for `tower::Layer` and `tower::Service` | ❌ |
+//! | `anyhow` | Integrate with the [`anyhow`](https://crates.io/crates/anyhow) crate | ❌ |
+//! | `eyre` | Integrate with the [`eyre`](https://crates.io/crates/eyre) crate | ❌ |
+//! | `affix` | Middleware for adding prefix and suffix to the request path | ❌ |
+//! | `basic-auth` | Middleware for basic authentication | ❌ |
+//! | `caching-headers` | Middleware for setting caching headers | ❌ |
+//! | `catch-panic` | Middleware for catching panics | ❌ |
+//! | `concurrency-limiter` | Middleware for limiting concurrency | ❌ |
+//! | `force-https` | Middleware for forcing HTTPS | ❌ |
+//! | `logging` | Middleware for logging requests and responses | ❌ |
+//! | `request-id` | Middleware for setting a request ID | ❌ |
+//! | `size-limiter` | Middleware for limiting request size | ❌ |
+//! | `sse` | Server-Sent Events (SSE) middleware | ❌ |
+//! | `timeout` | Middleware for setting a timeout | ❌ |
+//! | `trailing-slash` | Middleware for handling trailing slashes | ❌ |
+//! | `websocket` | WebSocket implementation | ❌ |
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
 #![doc(html_logo_url = "https://salvo.rs/images/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -8,90 +42,85 @@
 #[macro_use]
 mod cfg;
 pub use salvo_core as core;
-#[doc(no_inline)]
+// #[doc(no_inline)]
 pub use salvo_core::*;
 // https://github.com/bkchr/proc-macro-crate/issues/10
 extern crate self as salvo;
 
 cfg_feature! {
     #![feature ="affix"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::affix;
 }
 cfg_feature! {
     #![feature ="basic-auth"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::basic_auth;
 }
 cfg_feature! {
     #![feature ="caching-headers"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::caching_headers;
 }
 cfg_feature! {
     #![feature ="catch-panic"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::catch_panic;
 }
 cfg_feature! {
-    #![feature ="compression"]
-    #[doc(no_inline)]
-    pub use salvo_compression as compression;
-}
-cfg_feature! {
     #![feature ="force-https"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::force_https;
 }
 cfg_feature! {
-    #![feature ="jwt-auth"]
-    #[doc(no_inline)]
-    pub use salvo_jwt_auth as jwt_auth;
-}
-cfg_feature! {
     #![feature ="logging"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::logging;
 }
 cfg_feature! {
     #![feature ="concurrency-limiter"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::concurrency_limiter;
 }
 cfg_feature! {
     #![feature ="size-limiter"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::size_limiter;
 }
 cfg_feature! {
     #![feature ="sse"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::sse;
 }
 cfg_feature! {
     #![feature ="trailing-slash"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::trailing_slash;
 }
 cfg_feature! {
     #![feature ="timeout"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::timeout;
 }
 cfg_feature! {
     #![feature ="websocket"]
-    #[doc(no_inline)]
+    // #[doc(no_inline)]
     pub use salvo_extra::websocket;
 }
 cfg_feature! {
-    #![feature ="request_id"]
-    #[doc(no_inline)]
+    #![feature ="request-id"]
+    // #[doc(no_inline)]
     pub use salvo_extra::request_id;
 }
 cfg_feature! {
     #![feature ="cache"]
     #[doc(no_inline)]
     pub use salvo_cache as cache;
+}
+cfg_feature! {
+    #![feature ="compression"]
+    #[doc(no_inline)]
+    pub use salvo_compression as compression;
 }
 cfg_feature! {
     #![feature ="cors"]
@@ -107,6 +136,11 @@ cfg_feature! {
     #![feature ="flash"]
     #[doc(no_inline)]
     pub use salvo_flash as flash;
+}
+cfg_feature! {
+    #![feature ="jwt-auth"]
+    #[doc(no_inline)]
+    pub use salvo_jwt_auth as jwt_auth;
 }
 cfg_feature! {
     #![feature ="proxy"]

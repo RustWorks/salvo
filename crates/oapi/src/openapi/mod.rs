@@ -1,29 +1,4 @@
 //! Rust implementation of Openapi Spec V3.
-use std::collections::{btree_map, BTreeSet};
-
-use once_cell::sync::Lazy;
-use regex::Regex;
-use salvo_core::{async_trait, writing, Depot, FlowCtrl, Handler, Router};
-use serde::{de::Visitor, Deserialize, Serialize, Serializer};
-
-pub use self::{
-    components::Components,
-    content::Content,
-    example::Example,
-    external_docs::ExternalDocs,
-    header::Header,
-    info::{Contact, Info, License},
-    operation::{Operation, Operations},
-    parameter::{Parameter, ParameterIn, ParameterStyle, Parameters},
-    path::{PathItem, PathItemType, Paths},
-    request_body::RequestBody,
-    response::{Response, Responses},
-    schema::{Array, Discriminator, KnownFormat, Object, Ref, Schema, SchemaFormat, SchemaType, ToArray},
-    security::{SecurityRequirement, SecurityScheme},
-    server::{Server, ServerVariable, ServerVariables, Servers},
-    tag::Tag,
-    xml::Xml,
-};
 
 mod components;
 mod content;
@@ -44,8 +19,47 @@ mod tag;
 mod xml;
 
 use crate::{routing::NormNode, Endpoint};
+use std::collections::{btree_map, BTreeSet};
+
+use once_cell::sync::Lazy;
+use regex::Regex;
+use salvo_core::{async_trait, writing, Depot, FlowCtrl, Handler, Router};
+use serde::{de::Visitor, Deserialize, Serialize, Serializer};
+
+pub use self::{
+    components::Components,
+    content::Content,
+    example::Example,
+    external_docs::ExternalDocs,
+    header::Header,
+    info::{Contact, Info, License},
+    operation::{Operation, Operations},
+    parameter::{Parameter, ParameterIn, ParameterStyle, Parameters},
+    path::{PathItem, PathItemType, Paths},
+    request_body::RequestBody,
+    response::{Response, Responses},
+    schema::{Array, Discriminator, KnownFormat, Object, Ref, Schema, SchemaFormat, SchemaType, Schemas, ToArray},
+    security::{SecurityRequirement, SecurityScheme},
+    server::{Server, ServerVariable, ServerVariables, Servers},
+    tag::Tag,
+    xml::Xml,
+};
 
 static PATH_PARAMETER_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{([^}:]+)").expect("invalid regex"));
+
+/// The structure of the internal storage object paths.
+#[cfg(not(feature = "preserve-path-order"))]
+pub type PathMap<K, V> = std::collections::BTreeMap<K, V>;
+/// The structure of the internal storage object paths.
+#[cfg(feature = "preserve-path-order")]
+pub type PathMap<K, V> = indexmap::IndexMap<K, V>;
+
+/// The structure of the internal storage object properties.
+#[cfg(not(feature = "preserve-prop-order"))]
+pub type PropMap<K, V> = std::collections::BTreeMap<K, V>;
+/// The structure of the internal storage object properties.
+#[cfg(feature = "preserve-prop-order")]
+pub type PropMap<K, V> = indexmap::IndexMap<K, V>;
 
 /// Root object of the OpenAPI document.
 ///
@@ -153,11 +167,12 @@ impl OpenApi {
         serde_json::to_string_pretty(self)
     }
 
-    /// Converts this [`OpenApi`] to YAML String. This method essentially calls [`serde_yaml::to_string`] method.
-    #[cfg(feature = "yaml")]
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "yaml")))]
-    pub fn to_yaml(&self) -> Result<String, serde_yaml::Error> {
-        serde_yaml::to_string(self)
+    cfg_feature! {
+        #![feature ="yaml"]
+        /// Converts this [`OpenApi`] to YAML String. This method essentially calls [`serde_yaml::to_string`] method.
+        pub fn to_yaml(&self) -> Result<String, serde_yaml::Error> {
+            serde_yaml::to_string(self)
+        }
     }
 
     /// Merge `other` [`OpenApi`] consuming it and resuming it's content.
@@ -267,7 +282,7 @@ impl OpenApi {
     ///
     /// Accepts two arguments where first is name of the schema and second is the schema itself.
     pub fn add_schema<S: Into<String>, I: Into<RefOr<Schema>>>(mut self, name: S, schema: I) -> Self {
-        self.components.schemas.insert(name.into(), schema.into());
+        self.components.schemas.insert(name, schema);
         self
     }
 
@@ -910,7 +925,7 @@ mod tests {
                        "/pets/{id}": {
                           "get": {
                              "summary": "Get pet by id",
-                             "description": "Get pet by id\n\nGet pet from database by pet database id",
+                             "description": "Get pet from database by pet database id",
                              "operationId": "salvo_oapi.openapi.tests.simple_document_with_security.get_pet_by_id",
                              "parameters": [
                                 {
@@ -1143,7 +1158,7 @@ mod tests {
     #[test]
     fn test_openapi_schema_work_with_generics() {
         #[derive(Serialize, Deserialize, Clone, Debug, ToSchema)]
-        #[salvo(schema(symbol = "City"))]
+        #[salvo(schema(name = City))]
         pub(crate) struct CityDTO {
             #[salvo(schema(rename = "id"))]
             pub(crate) id: String,
@@ -1152,7 +1167,7 @@ mod tests {
         }
 
         #[derive(Serialize, Deserialize, Debug, ToSchema)]
-        #[salvo(schema(symbol = "Response"))]
+        #[salvo(schema(name = Response))]
         pub(crate) struct ApiResponse<T: Serialize + ToSchema + Send + Debug + 'static> {
             #[salvo(schema(rename = "status"))]
             /// status code
@@ -1209,7 +1224,7 @@ mod tests {
                                     "content": {
                                         "application/json": {
                                             "schema": {
-                                                "$ref": "#/components/schemas/Response<alloc::vec::Vec<salvo_oapi::openapi::tests::test_openapi_schema_work_with_generics::CityDTO>>"
+                                                "$ref": "#/components/schemas/Response<alloc.vec.Vec<salvo_oapi.openapi.tests.test_openapi_schema_work_with_generics.CityDTO>>"
                                             }
                                         }
                                     }
@@ -1275,7 +1290,7 @@ mod tests {
                                 }
                             }
                         },
-                        "Response<alloc::vec::Vec<salvo_oapi::openapi::tests::test_openapi_schema_work_with_generics::CityDTO>>": {
+                        "Response<alloc.vec.Vec<salvo_oapi.openapi.tests.test_openapi_schema_work_with_generics.CityDTO>>": {
                             "type": "object",
                             "required": [
                                 "status",

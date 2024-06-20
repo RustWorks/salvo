@@ -106,6 +106,11 @@ where
             _phantom: PhantomData,
         }
     }
+
+    /// Get the inner `Acceptor`.
+    pub fn inner(&self) -> &T {
+        &self.inner
+    }
 }
 
 impl<S, C, T, E> Acceptor for OpensslAcceptor<S, C, T, E>
@@ -155,7 +160,6 @@ where
             conn,
             local_addr,
             remote_addr,
-            http_version,
             ..
         } = self.inner.accept(fuse_factory).await?;
         let fusewire = conn.fusewire();
@@ -175,7 +179,6 @@ where
             conn: HandshakeStream::new(conn, fusewire),
             local_addr,
             remote_addr,
-            http_version,
             http_scheme: Scheme::HTTPS,
         })
     }

@@ -21,16 +21,29 @@ pub struct UnixListener<T> {
     path: T,
     permissions: Option<Permissions>,
     owner: Option<(Option<Uid>, Option<Gid>)>,
+    #[cfg(feature = "socket2")]
+    backlog: Option<u32>,
 }
 #[cfg(unix)]
 impl<T> UnixListener<T> {
     /// Creates a new `UnixListener` bind to the specified path.
+    #[cfg(not(feature = "socket2"))]
     #[inline]
     pub fn new(path: T) -> UnixListener<T> {
         UnixListener {
             path,
             permissions: None,
             owner: None,
+        }
+    }
+    /// Creates a new `UnixListener` bind to the specified path.
+    #[cfg(feature = "socket2")]
+    #[inline]
+    pub fn new(path: T) -> UnixListener<T> {
+        UnixListener {
+            path,
+            permissions: None,
+            owner: None, backlog: None
         }
     }
 
@@ -46,6 +59,16 @@ impl<T> UnixListener<T> {
     pub fn owner(mut self, uid: Option<u32>, gid: Option<u32>) -> Self {
         self.owner = Some((uid.map(Uid::from_raw), gid.map(Gid::from_raw)));
         self
+    }
+
+    cfg_feature! {
+        #![feature = "socket2"]
+        /// Set backlog capacity.
+        #[inline]
+        pub fn backlog(mut self, backlog: u32) -> Self {
+            self.backlog = Some(backlog);
+            self
+        }
     }
 }
 
@@ -76,14 +99,23 @@ where
             (None, None) => TokioUnixListener::bind(self.path)?,
         };
 
-        let holding = Holding {
+        #[cfg(feature = "socket2")]
+        if let Some(backlog) = self.backlog {
+            let socket = socket2::SockRef::from(&inner);
+            socket.listen(backlog as _)?;
+        }
+
+        let holdings = vec![Holding {
             local_addr: inner.local_addr()?.into(),
+            #[cfg(not(feature = "http2-cleartext"))]
             http_versions: vec![Version::HTTP_11],
+            #[cfg(feature = "http2-cleartext")]
+            http_versions: vec![Version::HTTP_11, Version::HTTP_2],
             http_scheme: Scheme::HTTP,
-        };
+        }];
         Ok(UnixAcceptor {
             inner,
-            holdings: vec![holding],
+            holdings,
         })
     }
 }
@@ -92,6 +124,12 @@ where
 pub struct UnixAcceptor {
     inner: TokioUnixListener,
     holdings: Vec<Holding>,
+}
+impl UnixAcceptor {
+    /// Get the inner `TokioUnixListener`.
+    pub fn inner(&self) -> &TokioUnixListener {
+        &self.inner
+    }
 }
 
 #[cfg(unix)]
@@ -108,17 +146,17 @@ impl Acceptor for UnixAcceptor {
         self.inner.accept().await.map(move |(conn, remote_addr)|{
             let remote_addr = Arc::new(remote_addr);
             let local_addr = self.holdings[0].local_addr.clone();
-             Accepted {
-            conn: StraightStream::new(conn, fuse_factory.map(|f|f.create(FuseInfo {
-                trans_proto: TransProto::Tcp,
+            Accepted {
+                conn: StraightStream::new(conn, fuse_factory.map(|f|f.create(FuseInfo {
+                    trans_proto: TransProto::Tcp,
+                    remote_addr: remote_addr.clone().into(),
+                    local_addr: local_addr.clone()
+                }))),
+                local_addr: self.holdings[0].local_addr.clone(),
                 remote_addr: remote_addr.clone().into(),
-                local_addr: local_addr.clone()
-            }))),
-            local_addr: self.holdings[0].local_addr.clone(),
-            remote_addr: remote_addr.clone().into(),
-            http_version: Version::HTTP_11,
-            http_scheme: Scheme::HTTP,
-        }})
+                http_scheme: Scheme::HTTP,
+            }
+        })
     }
 }
 

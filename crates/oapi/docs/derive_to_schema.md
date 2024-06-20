@@ -27,14 +27,18 @@ struct Pet {
 ```
 
 # Struct Optional Configuration Options for `#[salvo(schema(...))]`
+
+* `description = ...` Can be literal string or Rust expression e.g. _`const`_ reference or
+  `include_str!(...)` statement. This can be used to override **default** description what is
+  resolved from doc comments of the type.
 * `example = ...` Can be _`json!(...)`_. _`json!(...)`_ should be something that
   _`serde_json::json!`_ can parse as a _`serde_json::Value`_.
 * `xml(...)` Can be used to define [`Xml`][xml] object properties applicable to Structs.
 * `rename_all = ...` Supports same syntax as _serde_ _`rename_all`_ attribute. Will rename all fields
   of the structs accordingly. If both _serde_ `rename_all` and _schema_ _`rename_all`_ are defined
   __serde__ will take precedence.
-* `symbol = ...` Literal string value. Can be used to define alternative path and name for the schema what will be used in
-  the OpenAPI. E.g _`symbol = "path::to::Pet"`_. This would make the schema appear in the generated
+* `name = ...` Literal string value. Can be used to define alternative path and name for the schema what will be used in
+  the OpenAPI. E.g _`name = "path::to::Pet"`_. This would make the schema appear in the generated
   OpenAPI spec as _`path.to.Pet`_.
 * `default` Can be used to populate default values on all fields using the struct's
   [`Default`](std::default::Default) implementation.
@@ -44,13 +48,17 @@ struct Pet {
 * `skip` Can be used to skip this field.
 
 # Enum Optional Configuration Options for `#[salvo(schema(...))]`
+
+* `description = ...` Can be literal string or Rust expression e.g. _`const`_ reference or
+  `include_str!(...)` statement. This can be used to override **default** description what is
+  resolved from doc comments of the type.
 * `example = ...` Can be method reference or _`json!(...)`_.
 * `default = ...` Can be method reference or _`json!(...)`_.
 * `rename_all = ...` Supports same syntax as _serde_ _`rename_all`_ attribute. Will rename all
   variants of the enum accordingly. If both _serde_ `rename_all` and _schema_ _`rename_all`_
   are defined __serde__ will take precedence.
-* `symbol = ...` Literal string value. Can be used to define alternative path and name for the schema what will be used in
-  the OpenAPI. E.g _`symbol = "path::to::Pet"`_. This would make the schema appear in the generated
+* `name = ...` Literal string value. Can be used to define alternative path and name for the schema what will be used in
+  the OpenAPI. E.g _`name = "path::to::Pet"`_. This would make the schema appear in the generated
   OpenAPI spec as _`path.to.Pet`_.
 * `deprecated` Can be used to mark all fields as deprecated in the generated OpenAPI spec but
    not in the code. If you'd like to mark the fields as deprecated in the code as well use
@@ -66,6 +74,10 @@ _`rename`_ attribute. It behaves similarly to serde's _`rename`_ attribute. If b
 _`rename`_ and _schema_ _`rename`_ are defined __serde__ will take precedence.
 
 # Unnamed Field Struct Optional Configuration Options for `#[salvo(schema(...))]`
+
+* `description = ...` Can be literal string or Rust expression e.g. _`const`_ reference or
+  `include_str!(...)` statement. This can be used to override **default** description what is
+  resolved from doc comments of the type.
 * `example = ...` Can be method reference or _`json!(...)`_.
 * `default = ...` Can be method reference or _`json!(...)`_. If no value is specified, and the struct has
   only one field, the field's default value in the schema will be set from the struct's
@@ -78,8 +90,8 @@ _`rename`_ and _schema_ _`rename`_ are defined __serde__ will take precedence.
   any third-party types are used which are not [`ToSchema`][to_schema]s nor [`primitive` types][primitive].
    Value can be any Rust type what normally could be used to serialize to JSON or custom type such as _`Object`_.
    _`Object`_ will be rendered as generic OpenAPI object _(`type: object`)_.
-* `symbol = ...` Literal string value. Can be used to define alternative path and name for the schema what will be used in
-  the OpenAPI. E.g _`symbol = "path::to::Pet"`_. This would make the schema appear in the generated
+* `name = ...` Literal string value. Can be used to define alternative path and name for the schema what will be used in
+  the OpenAPI. E.g _`name = "path::to::Pet"`_. This would make the schema appear in the generated
   OpenAPI spec as _`path.to.Pet`_.
 * `deprecated` Can be used to mark all fields as deprecated in the generated OpenAPI spec but
    not in the code. If you'd like to mark the fields as deprecated in the code as well use
@@ -245,8 +257,8 @@ their numeric value.
 
 * `example = ...` Can be method reference or _`json!(...)`_.
 * `default = ...` Can be method reference or _`json!(...)`_.
-* `symbol = ...` Literal string value. Can be used to define alternative path and name for the schema what will be used in
-  the OpenAPI. E.g _`symbol = "path::to::Pet"`_. This would make the schema appear in the generated
+* `name = ...` Literal string value. Can be used to define alternative path and name for the schema what will be used in
+  the OpenAPI. E.g _`name = "path::to::Pet"`_. This would make the schema appear in the generated
   OpenAPI spec as _`path.to.Pet`_.
 
 _**Create enum with numeric values.**_
@@ -433,10 +445,10 @@ enum Random {
 }
 ```
 
-_**Add `symbol` to the enum.**_
+_**Add `name` to the enum.**_
 ```
 #[derive(salvo_oapi::ToSchema)]
-#[salvo(schema(symbol = "UserType"))]
+#[salvo(schema(name = UserType))]
 enum UserType {
     Admin,
     Moderator,
@@ -476,11 +488,11 @@ struct Value {
 }
 ```
 
-_**Use `as` attribute to change the name and the path of the schema in the generated OpenAPI
+_**Use `name` attribute to change the name and the path of the schema in the generated OpenAPI
 spec.**_
 ```
  #[derive(salvo_oapi::ToSchema)]
- #[salvo(schema(symbol = "api::models::person::Person"))]
+ #[salvo(schema(name = api::models::person::Person))]
  struct Person {
      name: String,
  }

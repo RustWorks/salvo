@@ -2,12 +2,12 @@ use syn::parse::{Parse, ParseBuffer, ParseStream};
 use syn::Attribute;
 
 use crate::feature::{
-    impl_into_inner, impl_merge, parse_features, AdditionalProperties, Bound, Default, Deprecated, Example,
-    ExclusiveMaximum, ExclusiveMinimum, Feature, Format, Inline, IntoInner, MaxItems, MaxLength, MaxProperties,
-    Maximum, Merge, MinItems, MinLength, MinProperties, Minimum, MultipleOf, Nullable, Pattern, ReadOnly, Rename,
-    RenameAll, Required, SchemaWith, Skip, SkipBound, Symbol, ValueType, WriteOnly, XmlAttr,
+    impl_into_inner, impl_merge, parse_features, AdditionalProperties, Aliases, Bound, Default, Deprecated,
+    Description, Example, ExclusiveMaximum, ExclusiveMinimum, Feature, Format, Inline, MaxItems, MaxLength,
+    MaxProperties, Maximum, Merge, MinItems, MinLength, MinProperties, Minimum, MultipleOf, Name, Nullable, Pattern,
+    ReadOnly, Rename, RenameAll, Required, SchemaWith, Skip, SkipBound, Title, ValueType, WriteOnly, XmlAttr,
 };
-use crate::{attribute, ResultExt};
+use crate::{attribute, DiagResult, Diagnostic, IntoInner};
 
 #[derive(Debug)]
 pub(crate) struct NamedFieldStructFeatures(Vec<Feature>);
@@ -17,13 +17,16 @@ impl Parse for NamedFieldStructFeatures {
         Ok(NamedFieldStructFeatures(parse_features!(
             input as Example,
             XmlAttr,
-            Symbol,
+            Name,
+            Title,
+            Aliases,
             RenameAll,
             MaxProperties,
             MinProperties,
             Inline,
             Default,
             Deprecated,
+            Description,
             Skip,
             Bound,
             SkipBound
@@ -41,11 +44,14 @@ impl Parse for UnnamedFieldStructFeatures {
         Ok(UnnamedFieldStructFeatures(parse_features!(
             input as Example,
             Default,
-            Symbol,
+            Name,
+            Title,
+            Aliases,
             Format,
             ValueType,
             Inline,
             Deprecated,
+            Description,
             Skip,
             Bound,
             SkipBound
@@ -62,10 +68,13 @@ impl Parse for EnumFeatures {
         Ok(EnumFeatures(parse_features!(
             input as Example,
             Default,
-            Symbol,
+            Name,
+            Title,
+            Aliases,
             RenameAll,
             Inline,
             Deprecated,
+            Description,
             Bound,
             SkipBound
         )))
@@ -82,9 +91,12 @@ impl Parse for ComplexEnumFeatures {
             input as Example,
             Default,
             RenameAll,
-            Symbol,
+            Name,
+            Title,
+            Aliases,
             Inline,
             Deprecated,
+            Description,
             Bound,
             SkipBound,
         )))
@@ -136,7 +148,7 @@ impl Parse for EnumNamedFieldVariantFeatures {
         Ok(EnumNamedFieldVariantFeatures(parse_features!(
             input as Example,
             XmlAttr,
-            Symbol,
+            Title,
             Rename,
             RenameAll,
             Deprecated,
@@ -154,7 +166,7 @@ impl Parse for EnumUnnamedFieldVariantFeatures {
         Ok(EnumUnnamedFieldVariantFeatures(parse_features!(
             input as Example,
             Default,
-            Symbol,
+            Title,
             Format,
             ValueType,
             Rename,
@@ -167,13 +179,13 @@ impl Parse for EnumUnnamedFieldVariantFeatures {
 impl_into_inner!(EnumUnnamedFieldVariantFeatures);
 
 pub(crate) trait FromAttributes {
-    fn parse_features<T>(&self) -> Option<T>
+    fn parse_features<T>(&self) -> Result<Option<T>, Diagnostic>
     where
         T: Parse + Merge<T>;
 }
 
 impl FromAttributes for &'_ [Attribute] {
-    fn parse_features<T>(&self) -> Option<T>
+    fn parse_features<T>(&self) -> Result<Option<T>, Diagnostic>
     where
         T: Parse + Merge<T>,
     {
@@ -182,7 +194,7 @@ impl FromAttributes for &'_ [Attribute] {
 }
 
 impl FromAttributes for Vec<Attribute> {
-    fn parse_features<T>(&self) -> Option<T>
+    fn parse_features<T>(&self) -> Result<Option<T>, Diagnostic>
     where
         T: Parse + Merge<T>,
     {
@@ -200,13 +212,15 @@ impl_merge!(
     EnumUnnamedFieldVariantFeatures
 );
 
-pub(crate) fn parse_schema_features<T: Sized + Parse + Merge<T>>(attributes: &[Attribute]) -> Option<T> {
-    attributes
+pub(crate) fn parse_schema_features<T: Sized + Parse + Merge<T>>(attributes: &[Attribute]) -> DiagResult<Option<T>> {
+    Ok(attributes
         .iter()
         .filter(|attribute| attribute.path().is_ident("salvo"))
         .filter_map(|attr| attribute::find_nested_list(attr, "schema").ok().flatten())
-        .map(|attr| attr.parse_args::<T>().unwrap_or_abort())
-        .reduce(|acc, item| acc.merge(item))
+        .map(|attr| attr.parse_args::<T>().map_err(Diagnostic::from))
+        .collect::<Result<Vec<T>, Diagnostic>>()?
+        .into_iter()
+        .reduce(|acc, item| acc.merge(item)))
 }
 
 pub(crate) fn parse_schema_features_with<
@@ -215,10 +229,12 @@ pub(crate) fn parse_schema_features_with<
 >(
     attributes: &[Attribute],
     parser: P,
-) -> Option<T> {
-    attributes
+) -> DiagResult<Option<T>> {
+    Ok(attributes
         .iter()
         .filter(|attribute| attribute.path().is_ident("schema"))
-        .map(|attributes| attributes.parse_args_with(parser).unwrap_or_abort())
-        .reduce(|acc, item| acc.merge(item))
+        .map(|attributes| attributes.parse_args_with(parser).map_err(Diagnostic::from))
+        .collect::<Result<Vec<T>, Diagnostic>>()?
+        .into_iter()
+        .reduce(|acc, item| acc.merge(item)))
 }

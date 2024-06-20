@@ -1,8 +1,9 @@
 use crate::feature::{items::*, Feature, Validatable};
+use crate::IntoInner;
 
-macro_rules! impl_name {
+macro_rules! impl_get_name {
     ( $ident:ident = $name:literal ) => {
-        impl crate::feature::Name for $ident {
+        impl crate::feature::GetName for $ident {
             fn get_name() -> &'static str {
                 $name
             }
@@ -10,14 +11,14 @@ macro_rules! impl_name {
 
         impl Display for $ident {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                let name = <Self as crate::feature::Name>::get_name();
+                let name = <Self as crate::feature::GetName>::get_name();
                 write!(f, "{name}")
             }
         }
     };
 }
 
-pub(crate) use impl_name;
+pub(crate) use impl_get_name;
 
 macro_rules! is_validatable {
     ( $( $ident:ident => $validatable:literal ),* $(,)?) => {
@@ -38,7 +39,9 @@ is_validatable! {
     Format => false,
     WriteOnly => false,
     ReadOnly => false,
-    Symbol => false,
+    Name => false,
+    Title => false,
+    Aliases => false,
     Nullable => false,
     Rename => false,
     DefaultStyle => false,
@@ -50,7 +53,7 @@ is_validatable! {
     RenameAll => false,
     ValueType => false,
     Inline => false,
-    Names => false,
+    ToParametersNames => false,
     MultipleOf => true,
     Maximum => true,
     Minimum => true,
@@ -77,7 +80,7 @@ macro_rules! parse_features {
     ($ident:ident as $( $feature:path ),* $(,)?) => {
         {
             fn parse(input: syn::parse::ParseStream) -> syn::Result<Vec<crate::feature::Feature>> {
-                let names = [$( <crate::feature::parse_features!(@as_ident $feature) as crate::feature::Name>::get_name(), )* ];
+                let names = [$( <crate::feature::parse_features!(@as_ident $feature) as crate::feature::GetName>::get_name(), )* ];
                 let mut features = Vec::<crate::feature::Feature>::new();
                 let attributes = names.join(", ");
 
@@ -91,7 +94,7 @@ macro_rules! parse_features {
                     let name = &*ident.to_string();
 
                     $(
-                        if name == <crate::feature::parse_features!(@as_ident $feature) as crate::feature::Name>::get_name() {
+                        if name == <crate::feature::parse_features!(@as_ident $feature) as crate::feature::GetName>::get_name() {
                             features.push(<$feature as crate::feature::Parse>::parse(input, ident)?.into());
                             if !input.is_empty() {
                                 input.parse::<syn::Token![,]>()?;
@@ -143,22 +146,70 @@ macro_rules! pop_feature_as_inner {
 
 pub(crate) use pop_feature_as_inner;
 
-#[allow(dead_code)]
-pub(crate) trait IntoInner<T> {
-    fn into_inner(self) -> T;
+macro_rules! impl_feature_into_inner {
+    ( $( $feat:ident , )* ) => {
+        $(
+            impl IntoInner<Option<$feat>> for Option<Feature> {
+                fn into_inner(self) -> Option<$feat> {
+                    self.and_then(|feature| match feature {
+                        Feature::$feat(value) => Some(value),
+                        _ => None,
+                    })
+                }
+            }
+        )*
+    };
+}
+
+impl_feature_into_inner! {
+    Example,
+    Default,
+    Inline,
+    XmlAttr,
+    Format,
+    ValueType,
+    WriteOnly,
+    ReadOnly,
+    Title,
+    Nullable,
+    Rename,
+    RenameAll,
+    Style,
+    AllowReserved,
+    Explode,
+    ParameterIn,
+    ToParametersNames,
+    MultipleOf,
+    Maximum,
+    Minimum,
+    ExclusiveMaximum,
+    ExclusiveMinimum,
+    MaxLength,
+    MinLength,
+    Pattern,
+    MaxItems,
+    MinItems,
+    MaxProperties,
+    MinProperties,
+    SchemaWith,
+    Description,
+    Deprecated,
+    Name,
+    AdditionalProperties,
+    Required,
 }
 
 macro_rules! impl_into_inner {
     ($ident:ident) => {
-        impl crate::feature::IntoInner<Vec<Feature>> for $ident {
+        impl crate::IntoInner<Vec<Feature>> for $ident {
             fn into_inner(self) -> Vec<Feature> {
                 self.0
             }
         }
 
-        impl crate::feature::IntoInner<Option<Vec<Feature>>> for Option<$ident> {
+        impl crate::IntoInner<Option<Vec<Feature>>> for Option<$ident> {
             fn into_inner(self) -> Option<Vec<Feature>> {
-                self.map(crate::feature::IntoInner::into_inner)
+                self.map(crate::IntoInner::into_inner)
             }
         }
     };

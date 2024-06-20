@@ -56,7 +56,7 @@ impl Builder {
         &self,
         conn: crate::conn::quinn::H3Connection,
         hyper_handler: crate::service::HyperHandler,
-        graceful_stop_token: CancellationToken,
+        graceful_stop_token: Option<CancellationToken>,
     ) -> IoResult<()> {
         let fusewire = conn.fusewire();
         let mut conn = self
@@ -99,15 +99,17 @@ impl Builder {
                     break;
                 }
                 Err(e) => {
-                    tracing::warn!(error = ?e, "accept failed");
+                    tracing::debug!(error = ?e, "accept stopped {:?}", e.get_error_level());
                     match e.get_error_level() {
                         ErrorLevel::ConnectionError => break,
                         ErrorLevel::StreamError => continue,
                     }
                 }
             }
-            if graceful_stop_token.is_cancelled() {
-                break;
+            if let Some(graceful_stop_token) = &graceful_stop_token {
+                if graceful_stop_token.is_cancelled() {
+                    break;
+                }
             }
         }
         Ok(())

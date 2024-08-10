@@ -3,6 +3,7 @@ use std::error::Error as StdError;
 use std::fmt::{self, Formatter};
 #[cfg(feature = "quinn")]
 use std::sync::Arc;
+use std::sync::OnceLock;
 
 use bytes::Bytes;
 #[cfg(feature = "cookie")]
@@ -13,9 +14,7 @@ pub use http::request::Parts;
 use http::uri::{Scheme, Uri};
 use http::Extensions;
 use http_body_util::{BodyExt, Limited};
-use indexmap::IndexMap;
 use multimap::MultiMap;
-use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
 use serde::de::Deserialize;
 
@@ -25,6 +24,7 @@ use crate::fuse::TransProto;
 use crate::http::body::ReqBody;
 use crate::http::form::{FilePart, FormData};
 use crate::http::{Mime, ParseError, Version};
+use crate::routing::PathParams;
 use crate::serde::{from_request, from_str_map, from_str_multi_map, from_str_multi_val, from_str_val};
 use crate::Error;
 
@@ -61,10 +61,10 @@ pub struct Request {
     #[cfg(feature = "cookie")]
     pub(crate) cookies: CookieJar,
 
-    pub(crate) params: IndexMap<String, String>,
+    pub(crate) params: PathParams,
 
     // accept: Option<Vec<Mime>>,
-    pub(crate) queries: OnceCell<MultiMap<String, String>>,
+    pub(crate) queries: OnceLock<MultiMap<String, String>>,
     pub(crate) form_data: tokio::sync::OnceCell<FormData>,
     pub(crate) payload: tokio::sync::OnceCell<Bytes>,
 
@@ -110,8 +110,8 @@ impl Request {
             method: Method::default(),
             #[cfg(feature = "cookie")]
             cookies: CookieJar::default(),
-            params: IndexMap::new(),
-            queries: OnceCell::new(),
+            params: PathParams::new(),
+            queries: OnceLock::new(),
             form_data: tokio::sync::OnceCell::new(),
             payload: tokio::sync::OnceCell::new(),
             version: Version::default(),
@@ -162,7 +162,7 @@ impl Request {
         };
 
         Request {
-            queries: OnceCell::new(),
+            queries: OnceLock::new(),
             uri,
             headers,
             body: body.into(),
@@ -171,10 +171,10 @@ impl Request {
             #[cfg(feature = "cookie")]
             cookies,
             // accept: None,
-            params: IndexMap::new(),
+            params: PathParams::new(),
             form_data: tokio::sync::OnceCell::new(),
             payload: tokio::sync::OnceCell::new(),
-            // multipart: OnceCell::new(),
+            // multipart: OnceLock::new(),
             local_addr: SocketAddr::Unknown,
             remote_addr: SocketAddr::Unknown,
             version,
@@ -266,7 +266,7 @@ impl Request {
     #[inline]
     pub fn set_uri(&mut self, uri: Uri) {
         self.uri = uri;
-        self.queries = OnceCell::new();
+        self.queries = OnceLock::new();
     }
 
     /// Returns a reference to the associated HTTP method.
@@ -567,12 +567,12 @@ impl Request {
     }
     /// Get params reference.
     #[inline]
-    pub fn params(&self) -> &IndexMap<String, String> {
+    pub fn params(&self) -> &PathParams {
         &self.params
     }
     /// Get params mutable reference.
     #[inline]
-    pub fn params_mut(&mut self) -> &mut IndexMap<String, String> {
+    pub fn params_mut(&mut self) -> &mut PathParams {
         &mut self.params
     }
 

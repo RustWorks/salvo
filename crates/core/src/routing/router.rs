@@ -257,6 +257,14 @@ impl Router {
         self.filter(filters::host(host))
     }
 
+    /// Create a new [`HostFilter`] and set host filter.
+    ///
+    /// [`HostFilter`]: super::filters::HostFilter
+    #[inline]
+    pub fn with_host(self, host: impl Into<String>) -> Self {
+        Router::with_filter(filters::host(host))
+    }
+
     /// Add a [`PortFilter`] to current router.
     ///
     /// [`PortFilter`]: super::filters::PortFilter
@@ -354,11 +362,11 @@ impl fmt::Debug for Router {
             } else {
                 format!("{prefix}{SYMBOL_TEE}{SYMBOL_RIGHT}{SYMBOL_RIGHT}")
             };
-            let hd = if let Some(goal) = &router.goal {
-                format!(" -> {}", goal.type_name())
-            } else {
-                "".into()
-            };
+            let hd = router
+                .goal
+                .as_ref()
+                .map(|goal| format!(" -> {}", goal.type_name()))
+                .unwrap_or_default();
             if !others.is_empty() {
                 writeln!(f, "{cp}{path}[{}]{hd}", others.join(","))?;
             } else {

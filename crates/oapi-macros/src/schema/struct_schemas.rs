@@ -8,8 +8,8 @@ use syn::{punctuated::Punctuated, spanned::Spanned, Attribute, Field, Generics, 
 use crate::component::{ComponentDescription, ComponentSchemaProps};
 use crate::doc_comment::CommentAttributes;
 use crate::feature::{
-    pop_feature, pop_feature_as_inner, Alias, Bound, Feature, FeaturesExt, IsSkipped, Name, RenameAll, SkipBound,
-    TryToTokensExt,
+    parse_features, pop_feature, pop_feature_as_inner, Alias, Bound, Feature, FeaturesExt, IsSkipped, Name, RenameAll,
+    SkipBound, TryToTokensExt,
 };
 use crate::schema::{Description, Inline};
 use crate::type_tree::TypeTree;
@@ -18,7 +18,7 @@ use crate::{
 };
 
 use super::{
-    feature::{FromAttributes, NamedFieldFeatures},
+    feature::{parse_schema_features_with, FromAttributes, NamedFieldFeatures},
     is_flatten, is_not_skipped, ComponentSchema, FieldRename, FlattenedMapSchema, Property,
 };
 
@@ -194,12 +194,13 @@ impl TryToTokens for NamedStructSchema<'_> {
                 .property(#name, #property)
             });
 
-            if (!is_option && crate::is_required(field_rule.as_ref(), container_rules.as_ref()))
-                || required
-                    .as_ref()
-                    .map(crate::feature::Required::is_true)
-                    .unwrap_or(false)
-            {
+            let component_required = !is_option && crate::is_required(field_rule.as_ref(), container_rules.as_ref());
+            let required = match (required, component_required) {
+                (Some(required), _) => required.is_true(),
+                (None, component_required) => component_required,
+            };
+
+            if required {
                 object_tokens.extend(quote! {
                     .required(#name)
                 })
@@ -354,6 +355,13 @@ impl TryToTokens for UnnamedStructSchema<'_> {
 
             if fields_len == 1 {
                 if let Some(ref mut features) = unnamed_struct_features {
+                    let inline = parse_schema_features_with(&first_field.attrs, |input| {
+                        Ok(parse_features!(input as crate::feature::Inline))
+                    })?
+                    .unwrap_or_default();
+
+                    features.extend(inline);
+
                     if pop_feature!(features => Feature::Default(crate::feature::Default(None))).is_some() {
                         let struct_ident = format_ident!("{}", &self.struct_name);
                         let index: syn::Index = 0.into();

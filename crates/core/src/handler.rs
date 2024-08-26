@@ -117,6 +117,8 @@
 //!     }
 //! }
 //! ```
+use std::sync::Arc;
+
 use crate::http::StatusCode;
 use crate::{async_trait, Depot, FlowCtrl, Request, Response};
 
@@ -135,14 +137,57 @@ pub trait Handler: Send + Sync + 'static {
     }
     /// Handle http request.
     #[must_use = "handle future must be used"]
-    async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl);
+    async fn handle(
+        &self,
+        req: &mut Request,
+        depot: &mut Depot,
+        res: &mut Response,
+        ctrl: &mut FlowCtrl,
+    );
+
+    /// Wrap to `HoopedHandler`.
+    #[inline]
+    fn hooped<H: Handler>(self) -> HoopedHandler
+    where
+        Self: Sized,
+    {
+        HoopedHandler::new(self)
+    }
+
+    /// Hoop this handler with middleware.
+    #[inline]
+    fn hoop<H: Handler>(self, hoop: H) -> HoopedHandler
+    where
+        Self: Sized,
+    {
+        HoopedHandler::new(self).hoop(hoop)
+    }
+
+    /// Hoop this handler with middleware.
+    ///
+    /// This middleware only effective when the filter return true.
+    #[inline]
+    fn hoop_when<H, F>(self, hoop: H, filter: F) -> HoopedHandler
+    where
+        Self: Sized,
+        H: Handler,
+        F: Fn(&Request, &Depot) -> bool + Send + Sync + 'static,
+    {
+        HoopedHandler::new(self).hoop_when(hoop, filter)
+    }
 }
 
 #[doc(hidden)]
 pub struct EmptyHandler;
 #[async_trait]
 impl Handler for EmptyHandler {
-    async fn handle(&self, _req: &mut Request, _depot: &mut Depot, res: &mut Response, _ctrl: &mut FlowCtrl) {
+    async fn handle(
+        &self,
+        _req: &mut Request,
+        _depot: &mut Depot,
+        res: &mut Response,
+        _ctrl: &mut FlowCtrl,
+    ) {
         res.status_code(StatusCode::OK);
     }
 }
@@ -160,13 +205,24 @@ pub struct WhenHoop<H, F> {
     pub inner: H,
     pub filter: F,
 }
+impl<H, F> WhenHoop<H, F> {
+    pub fn new(inner: H, filter: F) -> Self {
+        Self { inner, filter }
+    }
+}
 #[async_trait]
 impl<H, F> Handler for WhenHoop<H, F>
 where
     H: Handler,
     F: Fn(&Request, &Depot) -> bool + Send + Sync + 'static,
 {
-    async fn handle(&self, req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
+    async fn handle(
+        &self,
+        req: &mut Request,
+        depot: &mut Depot,
+        res: &mut Response,
+        ctrl: &mut FlowCtrl,
+    ) {
         if (self.filter)(req, depot) {
             self.inner.handle(req, depot, res, ctrl).await;
         }
@@ -186,6 +242,67 @@ where
 {
     fn skipped(&self, req: &mut Request, depot: &Depot) -> bool {
         (self)(req, depot)
+    }
+}
+
+/// Handler that wrap [`Handler`] to let it use middlwares.
+#[non_exhaustive]
+pub struct HoopedHandler {
+    inner: Arc<dyn Handler>,
+    hoops: Vec<Arc<dyn Handler>>,
+}
+impl HoopedHandler {
+    /// Create new `HoopedHandler`.
+    pub fn new<H: Handler>(inner: H) -> Self {
+        Self {
+            inner: Arc::new(inner),
+            hoops: vec![],
+        }
+    }
+
+    /// Get current catcher's middlewares reference.
+    #[inline]
+    pub fn hoops(&self) -> &Vec<Arc<dyn Handler>> {
+        &self.hoops
+    }
+    /// Get current catcher's middlewares mutable reference.
+    #[inline]
+    pub fn hoops_mut(&mut self) -> &mut Vec<Arc<dyn Handler>> {
+        &mut self.hoops
+    }
+
+    /// Add a handler as middleware, it will run the handler when error catched.
+    #[inline]
+    pub fn hoop<H: Handler>(mut self, hoop: H) -> Self {
+        self.hoops.push(Arc::new(hoop));
+        self
+    }
+
+    /// Add a handler as middleware, it will run the handler when error catched.
+    ///
+    /// This middleware only effective when the filter return true.
+    #[inline]
+    pub fn hoop_when<H, F>(mut self, hoop: H, filter: F) -> Self
+    where
+        H: Handler,
+        F: Fn(&Request, &Depot) -> bool + Send + Sync + 'static,
+    {
+        self.hoops.push(Arc::new(WhenHoop::new(hoop, filter)));
+        self
+    }
+}
+#[async_trait]
+impl Handler for HoopedHandler {
+    async fn handle(
+        &self,
+        req: &mut Request,
+        depot: &mut Depot,
+        res: &mut Response,
+        _ctrl: &mut FlowCtrl,
+    ) {
+        let inner: Arc<dyn Handler> = self.inner.clone();
+        let mut ctrl = FlowCtrl::new(self.hoops.iter().chain([&inner]).cloned().collect());
+        ctrl.call_next(req, depot, res).await;
     }
 }
 
@@ -235,64 +352,5 @@ macro_rules! skipper_tuple_impls {
     }
 }
 
-macro_rules! __for_each_tuple {
-    ($callback:ident) => {
-        $callback! {
-            1 {
-                (0) -> A,
-            }
-            2 {
-                (0) -> A,
-                (1) -> B,
-            }
-            3 {
-                (0) -> A,
-                (1) -> B,
-                (2) -> C,
-            }
-            4 {
-                (0) -> A,
-                (1) -> B,
-                (2) -> C,
-                (3) -> D,
-            }
-            5 {
-                (0) -> A,
-                (1) -> B,
-                (2) -> C,
-                (3) -> D,
-                (4) -> E,
-            }
-            6 {
-                (0) -> A,
-                (1) -> B,
-                (2) -> C,
-                (3) -> D,
-                (4) -> E,
-                (5) -> F,
-            }
-            7 {
-                (0) -> A,
-                (1) -> B,
-                (2) -> C,
-                (3) -> D,
-                (4) -> E,
-                (5) -> F,
-                (6) -> G,
-            }
-            8 {
-                (0) -> A,
-                (1) -> B,
-                (2) -> C,
-                (3) -> D,
-                (4) -> E,
-                (5) -> F,
-                (6) -> G,
-                (7) -> H,
-            }
-        }
-    };
-}
-
-__for_each_tuple!(handler_tuple_impls);
-__for_each_tuple!(skipper_tuple_impls);
+crate::for_each_tuple!(handler_tuple_impls);
+crate::for_each_tuple!(skipper_tuple_impls);

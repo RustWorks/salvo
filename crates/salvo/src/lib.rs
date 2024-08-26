@@ -22,7 +22,7 @@
 //! | `tower-compat` | Adapters for `tower::Layer` and `tower::Service` | ❌ |
 //! | `anyhow` | Integrate with the [`anyhow`](https://crates.io/crates/anyhow) crate | ❌ |
 //! | `eyre` | Integrate with the [`eyre`](https://crates.io/crates/eyre) crate | ❌ |
-//! | `affix` | Middleware for adding prefix and suffix to the request path | ❌ |
+//! | `affix-state` | Middleware for adding prefix and suffix to the request path | ❌ |
 //! | `basic-auth` | Middleware for basic authentication | ❌ |
 //! | `caching-headers` | Middleware for setting caching headers | ❌ |
 //! | `catch-panic` | Middleware for catching panics | ❌ |
@@ -48,9 +48,9 @@ pub use salvo_core::*;
 extern crate self as salvo;
 
 cfg_feature! {
-    #![feature ="affix"]
+    #![feature ="affix-state"]
     // #[doc(no_inline)]
-    pub use salvo_extra::affix;
+    pub use salvo_extra::affix_state;
 }
 cfg_feature! {
     #![feature ="basic-auth"]
@@ -177,8 +177,8 @@ cfg_feature! {
 pub mod prelude {
     pub use salvo_core::prelude::*;
     cfg_feature! {
-        #![feature ="affix"]
-        pub use salvo_extra::affix;
+        #![feature ="affix-state"]
+        pub use salvo_extra::affix_state;
     }
     cfg_feature! {
         #![feature ="basic-auth"]

@@ -97,24 +97,30 @@ impl Scribe for StatusCode {
 impl Scribe for &'static str {
     #[inline]
     fn render(self, res: &mut Response) {
-        res.headers_mut()
-            .insert(CONTENT_TYPE, HeaderValue::from_static("text/plain; charset=utf-8"));
+        res.headers_mut().insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("text/plain; charset=utf-8"),
+        );
         res.write_body(self).ok();
     }
 }
 impl<'a> Scribe for &'a String {
     #[inline]
     fn render(self, res: &mut Response) {
-        res.headers_mut()
-            .insert(CONTENT_TYPE, HeaderValue::from_static("text/plain; charset=utf-8"));
+        res.headers_mut().insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("text/plain; charset=utf-8"),
+        );
         res.write_body(self.as_bytes().to_vec()).ok();
     }
 }
 impl Scribe for String {
     #[inline]
     fn render(self, res: &mut Response) {
-        res.headers_mut()
-            .insert(CONTENT_TYPE, HeaderValue::from_static("text/plain; charset=utf-8"));
+        res.headers_mut().insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("text/plain; charset=utf-8"),
+        );
         res.write_body(self).ok();
     }
 }
@@ -122,6 +128,26 @@ impl Scribe for std::convert::Infallible {
     #[inline]
     fn render(self, _res: &mut Response) {}
 }
+
+macro_rules! writer_tuple_impls {
+    ($(
+        $Tuple:tt {
+            $(($idx:tt) -> $T:ident,)+
+        }
+    )+) => {$(
+        #[async_trait::async_trait]
+        impl<$($T,)+> Writer for ($($T,)+) where $($T: Writer + Send,)+
+        {
+            async fn write(self, req: &mut Request, depot: &mut Depot, res: &mut Response) {
+                $(
+                    self.$idx.write(req, depot, res).await;
+                )+
+            }
+        })+
+    }
+}
+
+crate::for_each_tuple!(writer_tuple_impls);
 
 #[cfg(test)]
 mod tests {
@@ -138,9 +164,14 @@ mod tests {
 
         let router = Router::new().push(Router::with_path("test").get(test));
 
-        let mut res = TestClient::get("http://127.0.0.1:5800/test").send(router).await;
+        let mut res = TestClient::get("http://127.0.0.1:5800/test")
+            .send(router)
+            .await;
         assert_eq!(res.take_string().await.unwrap(), "hello");
-        assert_eq!(res.headers().get("content-type").unwrap(), "text/plain; charset=utf-8");
+        assert_eq!(
+            res.headers().get("content-type").unwrap(),
+            "text/plain; charset=utf-8"
+        );
     }
 
     #[tokio::test]
@@ -151,8 +182,13 @@ mod tests {
         }
 
         let router = Router::new().push(Router::with_path("test").get(test));
-        let mut res = TestClient::get("http://127.0.0.1:5800/test").send(router).await;
+        let mut res = TestClient::get("http://127.0.0.1:5800/test")
+            .send(router)
+            .await;
         assert_eq!(res.take_string().await.unwrap(), "hello");
-        assert_eq!(res.headers().get("content-type").unwrap(), "text/plain; charset=utf-8");
+        assert_eq!(
+            res.headers().get("content-type").unwrap(),
+            "text/plain; charset=utf-8"
+        );
     }
 }

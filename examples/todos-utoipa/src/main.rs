@@ -1,6 +1,6 @@
 use std::sync::{Arc, LazyLock};
 
-use salvo::affix;
+use salvo::affix_state;
 use salvo::http::header::{self, HeaderValue};
 use salvo::http::response::ResBody;
 use salvo::prelude::*;
@@ -67,13 +67,17 @@ pub(crate) fn route() -> Router {
                     .hoop(size_limiter::max_size(1024 * 16))
                     .get(list_todos)
                     .post(create_todo)
-                    .push(Router::with_path("<id>").put(update_todo).delete(delete_todo)),
+                    .push(
+                        Router::with_path("<id>")
+                            .put(update_todo)
+                            .delete(delete_todo),
+                    ),
             ),
         )
         .push(Router::with_path("/api-doc/openapi.json").get(openapi_json))
         .push(
             Router::with_path("/swagger-ui/<**>")
-                .hoop(affix::inject(config))
+                .hoop(affix_state::inject(config))
                 .get(serve_swagger),
         )
 }
@@ -92,8 +96,10 @@ pub async fn serve_swagger(req: &mut Request, depot: &mut Depot, res: &mut Respo
     match utoipa_swagger_ui::serve(tail, config.clone()) {
         Ok(swagger_file) => swagger_file
             .map(|file| {
-                res.headers_mut()
-                    .insert(header::CONTENT_TYPE, HeaderValue::from_str(&file.content_type).unwrap());
+                res.headers_mut().insert(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_str(&file.content_type).unwrap(),
+                );
                 res.body(ResBody::Once(file.bytes.to_vec().into()));
             })
             .unwrap_or_else(|| {

@@ -69,9 +69,9 @@ impl Default for Catcher {
 }
 impl Catcher {
     /// Create new `Catcher`.
-    pub fn new<H: Into<Arc<dyn Handler>>>(goal: H) -> Self {
+    pub fn new<H: Handler>(goal: H) -> Self {
         Catcher {
-            goal: goal.into(),
+            goal: Arc::new(goal),
             hoops: vec![],
         }
     }
@@ -103,7 +103,10 @@ impl Catcher {
         H: Handler,
         F: Fn(&Request, &Depot) -> bool + Send + Sync + 'static,
     {
-        self.hoops.push(Arc::new(WhenHoop { inner: hoop, filter }));
+        self.hoops.push(Arc::new(WhenHoop {
+            inner: hoop,
+            filter,
+        }));
         self
     }
 
@@ -111,15 +114,6 @@ impl Catcher {
     pub async fn catch(&self, req: &mut Request, depot: &mut Depot, res: &mut Response) {
         let mut ctrl = FlowCtrl::new(self.hoops.iter().chain([&self.goal]).cloned().collect());
         ctrl.call_next(req, depot, res).await;
-    }
-}
-
-impl<H> From<H> for Catcher
-where
-    H: Into<Arc<dyn Handler>>,
-{
-    fn from(goal: H) -> Self {
-        Catcher::new(goal)
     }
 }
 
@@ -155,15 +149,29 @@ impl DefaultGoal {
 }
 #[async_trait]
 impl Handler for DefaultGoal {
-    async fn handle(&self, req: &mut Request, _depot: &mut Depot, res: &mut Response, _ctrl: &mut FlowCtrl) {
+    async fn handle(
+        &self,
+        req: &mut Request,
+        _depot: &mut Depot,
+        res: &mut Response,
+        _ctrl: &mut FlowCtrl,
+    ) {
         let status = res.status_code.unwrap_or(StatusCode::NOT_FOUND);
-        if (status.is_server_error() || status.is_client_error()) && (res.body.is_none() || res.body.is_error()) {
+        if (status.is_server_error() || status.is_client_error())
+            && (res.body.is_none() || res.body.is_error())
+        {
             write_error_default(req, res, self.footer.as_deref());
         }
     }
 }
 
-fn status_error_html(code: StatusCode, name: &str, brief: &str, cause: Option<&str>, footer: Option<&str>) -> String {
+fn status_error_html(
+    code: StatusCode,
+    name: &str,
+    brief: &str,
+    cause: Option<&str>,
+    footer: Option<&str>,
+) -> String {
     format!(
         r#"<!DOCTYPE html>
 <html>
@@ -262,7 +270,11 @@ fn status_error_xml(code: StatusCode, name: &str, brief: &str, cause: Option<&st
 /// Create bytes from `StatusError`.
 #[doc(hidden)]
 #[inline]
-pub fn status_error_bytes(err: &StatusError, prefer_format: &Mime, footer: Option<&str>) -> (Mime, Bytes) {
+pub fn status_error_bytes(
+    err: &StatusError,
+    prefer_format: &Mime,
+    footer: Option<&str>,
+) -> (Mime, Bytes) {
     let format = if !SUPPORTED_FORMATS.contains(&prefer_format.subtype()) {
         mime::TEXT_HTML
     } else {
@@ -318,7 +330,13 @@ mod tests {
     }
 
     #[handler]
-    async fn handle404(&self, _req: &Request, _depot: &Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
+    async fn handle404(
+        &self,
+        _req: &Request,
+        _depot: &Depot,
+        res: &mut Response,
+        ctrl: &mut FlowCtrl,
+    ) {
         if res.status_code.is_none() || Some(StatusCode::NOT_FOUND) == res.status_code {
             res.render("Custom 404 Error Page");
             ctrl.skip_rest();

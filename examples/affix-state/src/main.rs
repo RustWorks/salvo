@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use salvo::affix;
 use salvo::prelude::*;
 
 #[allow(dead_code)]
@@ -35,7 +34,7 @@ async fn main() {
     };
     let router = Router::new()
         .hoop(
-            affix::inject(config)
+            affix_state::inject(config)
                 .inject(Arc::new(State {
                     fails: Mutex::new(Vec::new()),
                 }))

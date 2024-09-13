@@ -4,7 +4,7 @@ use syn::punctuated::Punctuated;
 use syn::{parenthesized, parse::Parse, token::Paren, Error, Token};
 
 use crate::component::ComponentSchema;
-use crate::feature::Inline;
+use crate::feature::attributes::Inline;
 use crate::{parse_utils, AnyValue, Array, DiagResult, Required, TryToTokens};
 
 use super::example::Example;
@@ -50,8 +50,8 @@ use super::{PathType, PathTypeTree};
 #[derive(Default, Debug)]
 pub(crate) struct RequestBodyAttr<'r> {
     pub(crate) content: Option<PathType<'r>>,
-    pub(crate) content_type: Option<parse_utils::Value>,
-    pub(crate) description: Option<parse_utils::Value>,
+    pub(crate) content_type: Option<parse_utils::LitStrOrExpr>,
+    pub(crate) description: Option<parse_utils::LitStrOrExpr>,
     pub(crate) example: Option<AnyValue>,
     pub(crate) examples: Option<Punctuated<Example, Token![,]>>,
 }

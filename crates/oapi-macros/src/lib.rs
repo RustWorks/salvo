@@ -29,6 +29,7 @@ mod response;
 mod schema;
 mod schema_type;
 mod security_requirement;
+mod server;
 mod shared;
 mod type_tree;
 
@@ -39,6 +40,7 @@ pub(crate) use self::{
     operation::Operation,
     parameter::Parameter,
     response::Response,
+    server::Server,
     shared::*,
     type_tree::TypeTree,
 };
@@ -281,7 +283,7 @@ mod tests {
                                     "high",
                                     salvo::oapi::Object::new()
                                         .schema_type(salvo::oapi::schema::SchemaType::basic(salvo::oapi::schema::BasicType::Integer))
-                                        .format(salvo::oapi::SchemaFormat::KnownFormat(salvo::oapi::KnownFormat::Int32))
+                                        .format(salvo::oapi::SchemaFormat::KnownFormat(salvo::oapi::KnownFormat::UInt32))
                                         .deprecated(salvo::oapi::Deprecated::True)
                                         .minimum(0f64)
                                 )

@@ -13,7 +13,8 @@ use syn::{
     TypePath,
 };
 
-use crate::{feature, parse_utils, RenameRule, SerdeContainer, SerdeValue};
+use crate::feature::attributes;
+use crate::{parse_utils, RenameRule, SerdeContainer, SerdeValue};
 
 #[allow(dead_code)]
 pub(crate) enum InputType<'a> {
@@ -259,9 +260,9 @@ impl From<bool> for Required {
     }
 }
 
-impl From<feature::Required> for Required {
-    fn from(value: feature::Required) -> Self {
-        let feature::Required(required) = value;
+impl From<attributes::Required> for Required {
+    fn from(value: attributes::Required) -> Self {
+        let attributes::Required(required) = value;
         crate::Required::from(required)
     }
 }
@@ -350,11 +351,10 @@ impl AnyValue {
 
     pub(crate) fn parse_any(input: ParseStream) -> syn::Result<Self> {
         if input.peek(Lit) {
-            let lit = input
-                .parse::<Lit>()
-                .expect("parse_any: parse `Lit` failed")
-                .to_token_stream();
-            Ok(AnyValue::Json(lit))
+            let punct = input.parse::<Option<Token![-]>>()?;
+            let lit = input.parse::<Lit>().expect("parse_any: parse `Lit` failed");
+
+            Ok(AnyValue::Json(quote! { #punct #lit}))
         } else {
             let fork = input.fork();
             let is_json = if fork.peek(syn::Ident) && fork.peek2(Token![!]) {

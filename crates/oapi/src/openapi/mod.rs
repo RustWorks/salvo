@@ -7,6 +7,7 @@ mod example;
 mod external_docs;
 mod header;
 pub mod info;
+mod link;
 pub mod operation;
 pub mod parameter;
 pub mod path;
@@ -18,7 +19,7 @@ pub mod server;
 mod tag;
 mod xml;
 
-use std::collections::{btree_map, BTreeSet};
+use std::collections::BTreeSet;
 use std::fmt::Formatter;
 use std::sync::LazyLock;
 
@@ -134,6 +135,10 @@ pub struct OpenApi {
     /// All the references and invidual files could use their own schema dialect.
     #[serde(rename = "$schema", default, skip_serializing_if = "String::is_empty")]
     pub schema: String,
+
+    /// Optional extensions "x-something".
+    #[serde(skip_serializing_if = "PropMap::is_empty", flatten)]
+    pub extensions: PropMap<String, serde_json::Value>,
 }
 
 impl OpenApi {
@@ -399,6 +404,12 @@ impl OpenApi {
         self
     }
 
+    /// Add openapi extension (`x-something`) for [`OpenApi`].
+    pub fn add_extension<K: Into<String>>(mut self, key: K, value: serde_json::Value) -> Self {
+        self.extensions.insert(key.into(), value);
+        self
+    }
+
     /// Consusmes the [`OpenApi`] and returns [`Router`] with the [`OpenApi`] as handler.
     pub fn into_router(self, path: impl Into<String>) -> Router {
         Router::with_path(path.into()).goal(self)
@@ -492,14 +503,14 @@ impl OpenApi {
                 }
                 let path_item = self.paths.entry(path.clone()).or_default();
                 for method in methods {
-                    if let btree_map::Entry::Vacant(e) = path_item.operations.entry(method) {
-                        e.insert(operation.clone());
-                    } else {
+                    if path_item.operations.contains_key(&method) {
                         tracing::warn!(
                             "path `{}` already contains operation for method `{:?}`",
                             path,
                             method
                         );
+                    } else {
+                        path_item.operations.insert(method, operation.clone());
                     }
                 }
                 self.components.append(&mut components);
@@ -716,7 +727,7 @@ pub enum RefOr<T> {
     /// A [`Ref`] to a reusable component.
     Ref(schema::Ref),
     /// Some other type `T`.
-    T(T),
+    Type(T),
 }
 
 #[cfg(test)]
@@ -1045,7 +1056,7 @@ mod tests {
                                    "required": true,
                                    "schema": {
                                       "type": "integer",
-                                      "format": "int64",
+                                      "format": "uint64",
                                       "minimum": 0.0
                                    }
                                 },
@@ -1098,7 +1109,7 @@ mod tests {
                                 },
                                 "id": {
                                    "type": "integer",
-                                   "format": "int64",
+                                   "format": "uint64",
                                    "minimum": 0.0
                                 },
                                 "name": {
@@ -1448,7 +1459,7 @@ mod tests {
                                 },
                                 "code": {
                                     "type": "integer",
-                                    "format": "int32",
+                                    "format": "uint16",
                                     "minimum": 0.0
                                 },
                                 "detail": {

@@ -1,6 +1,6 @@
 //! HTTP response.
 use std::collections::VecDeque;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::path::PathBuf;
 
 #[cfg(feature = "cookie")]
@@ -489,6 +489,8 @@ impl Response {
     /// Useful when wanting to stream chunks from another thread.
     ///
     /// # Example
+    ///
+    /// ```
     /// use salvo_core::prelude::*;
     /// #[handler]
     /// async fn hello(res: &mut Response) {
@@ -498,6 +500,7 @@ impl Response {
     ///         tx.send_data("Hello world").await.unwrap();
     ///     });
     /// }
+    /// ```
     #[inline]
     pub fn channel(&mut self) -> BodySender {
         let (sender, body) = ResBody::channel();
@@ -506,7 +509,7 @@ impl Response {
     }
 }
 
-impl fmt::Debug for Response {
+impl Debug for Response {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_struct("Response")
             .field("status_code", &self.status_code)

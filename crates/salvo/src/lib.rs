@@ -23,6 +23,7 @@
 //! | `anyhow` | Integrate with the [`anyhow`](https://crates.io/crates/anyhow) crate | ❌ |
 //! | `eyre` | Integrate with the [`eyre`](https://crates.io/crates/eyre) crate | ❌ |
 //! | `affix-state` | Middleware for adding prefix and suffix to the request path | ❌ |
+//! | `craft` | Generate handlers or endpoints with shared data | ❌ |
 //! | `basic-auth` | Middleware for basic authentication | ❌ |
 //! | `caching-headers` | Middleware for setting caching headers | ❌ |
 //! | `catch-panic` | Middleware for catching panics | ❌ |
@@ -128,6 +129,11 @@ cfg_feature! {
     pub use salvo_cors as cors;
 }
 cfg_feature! {
+    #![feature ="craft"]
+    // #[doc(no_inline)]
+    pub use salvo_craft as craft;
+}
+cfg_feature! {
     #![feature ="csrf"]
     #[doc(no_inline)]
     pub use salvo_csrf as csrf;
@@ -195,6 +201,11 @@ pub mod prelude {
     cfg_feature! {
         #![feature ="compression"]
         pub use salvo_compression::{Compression, CompressionAlgo, CompressionLevel};
+    }
+    cfg_feature! {
+        #![feature ="craft"]
+        // #[doc(no_inline)]
+        pub use salvo_craft::craft;
     }
     cfg_feature! {
         #![feature ="csrf"]

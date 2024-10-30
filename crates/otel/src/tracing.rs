@@ -1,7 +1,7 @@
 use opentelemetry::trace::{FutureExt, Span, SpanKind, TraceContextExt, Tracer};
 use opentelemetry::{global, Context, KeyValue};
 use opentelemetry_http::HeaderExtractor;
-use opentelemetry_semantic_conventions::{attribute, resource, trace};
+use opentelemetry_semantic_conventions::{resource, trace};
 use salvo_core::http::headers::{self, HeaderMap, HeaderMapExt, HeaderName, HeaderValue};
 use salvo_core::prelude::*;
 
@@ -78,7 +78,10 @@ where
             let cx = Context::current();
             let span = cx.span();
 
-            let status = res.status_code.unwrap_or(StatusCode::NOT_FOUND);
+            let status = res.status_code.unwrap_or_else(|| {
+                tracing::info!("[otel::Tracing] Treat status_code=none as 200(OK).");
+                StatusCode::OK
+            });
             let event = if status.is_client_error() || status.is_server_error() {
                 "request.failure"
             } else {
@@ -91,7 +94,7 @@ where
             ));
             if let Some(content_length) = res.headers().typed_get::<headers::ContentLength>() {
                 span.set_attribute(KeyValue::new(
-                    attribute::HTTP_RESPONSE_BODY_SIZE,
+                    "http.response.header.content-length",
                     content_length.0 as i64,
                 ));
             }

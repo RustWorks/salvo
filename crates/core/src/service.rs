@@ -15,7 +15,7 @@ use crate::handler::{Handler, WhenHoop};
 use crate::http::body::{ReqBody, ResBody};
 use crate::http::{Mime, Request, Response, StatusCode};
 use crate::routing::{FlowCtrl, PathState, Router};
-use crate::Depot;
+use crate::{async_trait, Depot};
 
 /// Service http request.
 #[non_exhaustive]
@@ -172,6 +172,23 @@ where
     }
 }
 
+struct DefaultStatusOK;
+#[async_trait]
+impl Handler for DefaultStatusOK {
+    async fn handle(
+        &self,
+        req: &mut Request,
+        depot: &mut Depot,
+        res: &mut Response,
+        ctrl: &mut FlowCtrl,
+    ) {
+        ctrl.call_next(req, depot, res).await;
+        if res.status_code.is_none() {
+            res.status_code = Some(StatusCode::OK);
+        }
+    }
+}
+
 #[doc(hidden)]
 #[derive(Clone)]
 pub struct HyperHandler {
@@ -207,17 +224,36 @@ impl HyperHandler {
 
         let hoops = self.hoops.clone();
         async move {
-            if let Some(dm) = router.detect(&mut req, &mut path_state) {
+            if let Some(dm) = router.detect(&mut req, &mut path_state).await {
                 req.params = path_state.params;
-                let mut ctrl = FlowCtrl::new([&hoops[..], &dm.hoops[..], &[dm.goal]].concat());
+                // Set default status code before service hoops executed.
+                // We hope all hoops in service can get the correct status code.
+                let mut ctrl = FlowCtrl::new(
+                    [
+                        &hoops[..],
+                        &dm.hoops[..],
+                        &[Arc::new(DefaultStatusOK)],
+                        &[dm.goal],
+                    ]
+                    .concat(),
+                );
                 ctrl.call_next(&mut req, &mut depot, &mut res).await;
+                // Set it to default status code again if any hoop set status code to None.
                 if res.status_code.is_none() {
                     res.status_code = Some(StatusCode::OK);
                 }
             } else if !hoops.is_empty() {
                 req.params = path_state.params;
+                // Set default status code before service hoops executed.
+                // We hope all hoops in service can get the correct status code.
+                if path_state.has_any_goal {
+                    res.status_code = Some(StatusCode::METHOD_NOT_ALLOWED);
+                } else {
+                    res.status_code = Some(StatusCode::NOT_FOUND);
+                }
                 let mut ctrl = FlowCtrl::new(hoops);
                 ctrl.call_next(&mut req, &mut depot, &mut res).await;
+                // Set it to default status code again if any hoop set status code to None.
                 if res.status_code.is_none() && path_state.has_any_goal {
                     res.status_code = Some(StatusCode::METHOD_NOT_ALLOWED);
                 }
@@ -282,25 +318,29 @@ impl HyperHandler {
             #[cfg(feature = "quinn")]
             {
                 use bytes::Bytes;
-                use parking_lot::Mutex;
-                if let Some(session) =
-                    req.extensions.remove::<crate::proto::WebTransportSession<
-                        salvo_http3::http3_quinn::Connection,
+                use std::sync::Mutex;
+                if let Some(session) = req.extensions.remove::<Arc<
+                    crate::proto::WebTransportSession<salvo_http3::http3_quinn::Connection, Bytes>,
+                >>() {
+                    res.extensions.insert(session);
+                }
+                if let Some(conn) = req.extensions.remove::<Arc<
+                    Mutex<
+                        salvo_http3::server::Connection<
+                            salvo_http3::http3_quinn::Connection,
+                            Bytes,
+                        >,
+                    >,
+                >>() {
+                    res.extensions.insert(conn);
+                }
+                if let Some(stream) = req.extensions.remove::<Arc<
+                    salvo_http3::server::RequestStream<
+                        salvo_http3::http3_quinn::BidiStream<Bytes>,
                         Bytes,
-                    >>()
-                {
-                    res.extensions.insert(Arc::new(session));
-                }
-                if let Some(conn) = req.extensions.remove::<Mutex<
-                    salvo_http3::server::Connection<salvo_http3::http3_quinn::Connection, Bytes>,
+                    >,
                 >>() {
-                    res.extensions.insert(Arc::new(conn));
-                }
-                if let Some(stream) = req.extensions.remove::<salvo_http3::server::RequestStream<
-                    salvo_http3::http3_quinn::BidiStream<Bytes>,
-                    Bytes,
-                >>() {
-                    res.extensions.insert(Arc::new(stream));
+                    res.extensions.insert(stream);
                 }
             }
             res

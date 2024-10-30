@@ -428,15 +428,22 @@ impl PathParams {
                 panic!("only one wildcard param is allowed and it must be the last one.");
             }
         }
-        if name.starts_with("*+") || name.starts_with("*?") || name.starts_with("**") {
-            self.inner.insert(name[2..].to_owned(), value);
-            self.greedy = true;
-        } else if let Some(name) = name.strip_prefix('*') {
-            self.inner.insert(name.to_owned(), value);
+        if name.starts_with('*') {
+            self.inner.insert(split_wild_name(name).1.to_owned(), value);
             self.greedy = true;
         } else {
             self.inner.insert(name.to_owned(), value);
         }
+    }
+}
+
+pub(crate) fn split_wild_name(name: &str) -> (&str, &str) {
+    if name.starts_with("*+") || name.starts_with("*?") || name.starts_with("**") {
+        (&name[0..2], &name[2..])
+    } else if let Some(stripped) = name.strip_prefix('*') {
+        ("*", stripped)
+    } else {
+        ("", name)
     }
 }
 
@@ -538,14 +545,6 @@ fn decode_url_path_safely(path: &str) -> String {
     percent_encoding::percent_decode_str(path)
         .decode_utf8_lossy()
         .to_string()
-}
-
-#[doc(hidden)]
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-#[non_exhaustive]
-pub enum FlowCtrlStage {
-    Routing,
-    Catching,
 }
 
 /// Control the flow of execute handlers.

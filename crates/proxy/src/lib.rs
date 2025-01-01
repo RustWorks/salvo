@@ -1,10 +1,10 @@
-//! Provide proxy support for Savlo web framework.
+//! Provide proxy support for Salvo web framework.
 //!
 //! # Example
 //!
 //! In this example, if the requested URL begins with <http://127.0.0.1:5800/>, the proxy goes to
 //! <https://www.rust-lang.org>; if the requested URL begins with <http://localhost:5800/>, the proxy
-//! goes to <https://www.rust-lang.org>.
+//! goes to <https://crates.io>.
 //!
 //! ```no_run
 //! use salvo_core::prelude::*;

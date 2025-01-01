@@ -2,6 +2,7 @@
 name = "salvo-oapi"
 version = { workspace = true }
 edition = "2021"
+rust-version = { workspace = true }
 description = "OpenApi support for Salvo web framework"
 readme = "./README.md"
 license = { workspace = true }
@@ -10,7 +11,7 @@ homepage = { workspace = true }
 repository = { workspace = true }
 keywords = ["http", "async", "salvo", "openapi", "swagger-ui"]
 categories = ["network-programming", "asynchronous"]
-authors = ["Juha Kukkonen <juha7kukkonen@gmail.com>", "Chrislearn Young <chrislearn@hotmail.com>"]
+authors = ["Juha Kukkonen <juha7kukkonen@gmail.com>", "Chrislearn Young <chris@acroidea.com>"]
 
 [features]
 default = []
@@ -35,7 +36,7 @@ preserve-path-order = []
 preserve-prop-order = []
 
 [dependencies]
-salvo_core = { workspace = true, default-features = false, features = ["cookie", "test"] }
+salvo_core = { workspace = true, default-features = false, features = ["cookie"] }
 salvo-oapi-macros = { workspace = true, default-features = false }
 base64 = { workspace = true }
 thiserror = { workspace = true }
@@ -72,7 +73,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dev-dependencies]
 assert-json-diff = { workspace = true }
-salvo_core = { workspace = true }
+salvo_core = { workspace = true, default-features = false, features = ["cookie", "test"] }
 serde_json = { workspace = true }
 serde = { workspace = true }
 smallvec = { workspace = true, features = ["serde"] }

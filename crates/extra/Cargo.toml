@@ -3,6 +3,7 @@ name = "salvo_extra"
 version = { workspace = true }
 authors = { workspace = true }
 edition = { workspace = true }
+rust-version = { workspace = true }
 description = { workspace = true }
 homepage = { workspace = true }
 repository = { workspace = true }
@@ -22,7 +23,7 @@ affix-state = []
 basic-auth = ["dep:base64"]
 caching-headers = ["dep:etag", "dep:tracing"]
 catch-panic = ["dep:futures-util", "dep:tracing"]
-force-https = ["dep:tracing"]
+force-https = ["dep:tracing", "salvo_core/rustls"]
 logging = ["dep:tracing"]
 concurrency-limiter = ["dep:tracing", "tokio"]
 size-limiter = []

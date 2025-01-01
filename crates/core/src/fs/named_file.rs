@@ -239,7 +239,7 @@ fn build_content_disposition(
                 .unwrap_or_else(|| "file".into())
                 .into(),
         };
-        format!("attachment; filename={attached_name}")
+        format!(r#"attachment; filename="{attached_name}""#)
             .parse::<HeaderValue>()
             .map_err(Error::other)?
     } else {
@@ -509,7 +509,7 @@ impl NamedFile {
 
         if offset != 0 || length != self.metadata.len() || range.is_some() {
             res.status_code(StatusCode::PARTIAL_CONTENT);
-            match ContentRange::bytes(offset..offset + length - 1, self.metadata.len()) {
+            match ContentRange::bytes(offset..offset + length, self.metadata.len()) {
                 Ok(content_range) => {
                     res.headers_mut().typed_insert(content_range);
                 }

@@ -93,6 +93,8 @@ impl Router {
             }
             if !self.routers.is_empty() {
                 let original_cursor = path_state.cursor;
+                #[cfg(feature = "matched-path")]
+                let original_matched_parts_len = path_state.matched_parts.len();
                 for child in &self.routers {
                     if let Some(dm) = child.detect(req, path_state).await {
                         return Some(DetectMatched {
@@ -100,6 +102,10 @@ impl Router {
                             goal: dm.goal.clone(),
                         });
                     } else {
+                        #[cfg(feature = "matched-path")]
+                        path_state
+                            .matched_parts
+                            .truncate(original_matched_parts_len);
                         path_state.cursor = original_cursor;
                     }
                 }
@@ -118,7 +124,7 @@ impl Router {
         .await
     }
 
-    /// Insert a router at the begining of current router, shifting all routers after it to the right.
+    /// Insert a router at the beginning of current router, shifting all routers after it to the right.
     #[inline]
     pub fn unshift(mut self, router: Router) -> Self {
         self.routers.insert(0, router);
@@ -422,11 +428,11 @@ mod tests {
             .push(
                 Router::with_path("users")
                     .push(
-                        Router::with_path("<id>")
+                        Router::with_path("{id}")
                             .push(Router::with_path("emails").get(fake_handler)),
                     )
                     .push(
-                        Router::with_path("<id>/articles/<aid>")
+                        Router::with_path("{id}/articles/{aid}")
                             .get(fake_handler)
                             .delete(fake_handler),
                     ),
@@ -434,12 +440,12 @@ mod tests {
             .push(
                 Router::with_path("articles")
                     .push(
-                        Router::with_path("<id>/authors/<aid>")
+                        Router::with_path("{id}/authors/{aid}")
                             .get(fake_handler)
                             .delete(fake_handler),
                     )
                     .push(
-                        Router::with_path("<id>")
+                        Router::with_path("{id}")
                             .get(fake_handler)
                             .delete(fake_handler),
                     ),
@@ -448,17 +454,17 @@ mod tests {
             format!("{:?}", router),
             r#"└──!NULL!
     ├──users
-    │   ├──<id>
+    │   ├──{id}
     │   │   └──emails
     │   │       └──[GET] -> salvo_core::routing::router::tests::fake_handler
-    │   └──<id>/articles/<aid>
+    │   └──{id}/articles/{aid}
     │       ├──[GET] -> salvo_core::routing::router::tests::fake_handler
     │       └──[DELETE] -> salvo_core::routing::router::tests::fake_handler
     └──articles
-        ├──<id>/authors/<aid>
+        ├──{id}/authors/{aid}
         │   ├──[GET] -> salvo_core::routing::router::tests::fake_handler
         │   └──[DELETE] -> salvo_core::routing::router::tests::fake_handler
-        └──<id>
+        └──{id}
             ├──[GET] -> salvo_core::routing::router::tests::fake_handler
             └──[DELETE] -> salvo_core::routing::router::tests::fake_handler
 "#
@@ -468,7 +474,7 @@ mod tests {
     async fn test_router_detect1() {
         let router =
             Router::default().push(Router::with_path("users").push(
-                Router::with_path("<id>").push(Router::with_path("emails").get(fake_handler)),
+                Router::with_path("{id}").push(Router::with_path("emails").get(fake_handler)),
             ));
         let mut req = TestClient::get("http://local.host/users/12/emails").build();
         let mut path_state = PathState::new(req.uri().path());
@@ -478,9 +484,9 @@ mod tests {
     #[tokio::test]
     async fn test_router_detect2() {
         let router = Router::new()
-            .push(Router::with_path("users").push(Router::with_path("<id>").get(fake_handler)))
+            .push(Router::with_path("users").push(Router::with_path("{id}").get(fake_handler)))
             .push(Router::with_path("users").push(
-                Router::with_path("<id>").push(Router::with_path("emails").get(fake_handler)),
+                Router::with_path("{id}").push(Router::with_path("emails").get(fake_handler)),
             ));
         let mut req = TestClient::get("http://local.host/users/12/emails").build();
         let mut path_state = PathState::new(req.uri().path());
@@ -491,9 +497,9 @@ mod tests {
     async fn test_router_detect3() {
         let router = Router::new().push(
             Router::with_path("users").push(
-                Router::with_path(r"<id:/\d+/>").push(
+                Router::with_path(r"{id|\d+}").push(
                     Router::new()
-                        .push(Router::with_path("facebook/insights/<**rest>").goal(fake_handler)),
+                        .push(Router::with_path("facebook/insights/{**rest}").goal(fake_handler)),
                 ),
             ),
         );
@@ -512,9 +518,9 @@ mod tests {
     async fn test_router_detect4() {
         let router = Router::new().push(
             Router::with_path("users").push(
-                Router::with_path(r"<id:/\d+/>").push(
+                Router::with_path(r"{id|\d+}").push(
                     Router::new()
-                        .push(Router::with_path("facebook/insights/<*+rest>").goal(fake_handler)),
+                        .push(Router::with_path("facebook/insights/{*+rest}").goal(fake_handler)),
                 ),
             ),
         );
@@ -533,10 +539,10 @@ mod tests {
     async fn test_router_detect5() {
         let router = Router::new().push(
             Router::with_path("users").push(
-                Router::with_path(r"<id:/\d+/>").push(
+                Router::with_path(r"{id|\d+}").push(
                     Router::new().push(
                         Router::with_path("facebook/insights")
-                            .push(Router::with_path("<**rest>").goal(fake_handler)),
+                            .push(Router::with_path("{**rest}").goal(fake_handler)),
                     ),
                 ),
             ),
@@ -556,10 +562,10 @@ mod tests {
     async fn test_router_detect6() {
         let router = Router::new().push(
             Router::with_path("users").push(
-                Router::with_path(r"<id:/\d+/>").push(
+                Router::with_path(r"{id|\d+}").push(
                     Router::new().push(
                         Router::with_path("facebook/insights")
-                            .push(Router::new().path("<*+rest>").goal(fake_handler)),
+                            .push(Router::new().path("{*+rest}").goal(fake_handler)),
                     ),
                 ),
             ),
@@ -578,10 +584,10 @@ mod tests {
     async fn test_router_detect_utf8() {
         let router = Router::new().push(
             Router::with_path("用户").push(
-                Router::with_path(r"<id:/\d+/>").push(
+                Router::with_path(r"{id|\d+}").push(
                     Router::new().push(
                         Router::with_path("facebook/insights")
-                            .push(Router::with_path("<*+rest>").goal(fake_handler)),
+                            .push(Router::with_path("{*+rest}").goal(fake_handler)),
                     ),
                 ),
             ),
@@ -601,7 +607,7 @@ mod tests {
     #[tokio::test]
     async fn test_router_detect9() {
         let router = Router::new()
-            .push(Router::with_path("users/<sub:/(images|css)/>/<filename>").goal(fake_handler));
+            .push(Router::with_path("users/{sub|(images|css)}/{filename}").goal(fake_handler));
         let mut req = TestClient::get("http://local.host/users/12/m.jpg").build();
         let mut path_state = PathState::new(req.uri().path());
         let matched = router.detect(&mut req, &mut path_state).await;
@@ -615,7 +621,7 @@ mod tests {
     #[tokio::test]
     async fn test_router_detect10() {
         let router = Router::new()
-            .push(Router::with_path(r"users/<*sub:/(images|css)/.+/>").goal(fake_handler));
+            .push(Router::with_path(r"users/{*sub|(images|css)/.+}").goal(fake_handler));
         let mut req = TestClient::get("http://local.host/users/12/m.jpg").build();
         let mut path_state = PathState::new(req.uri().path());
         let matched = router.detect(&mut req, &mut path_state).await;
@@ -628,9 +634,8 @@ mod tests {
     }
     #[tokio::test]
     async fn test_router_detect11() {
-        let router = Router::new().push(
-            Router::with_path(r"avatars/<width:/\d+/>x<height:/\d+/>.<ext>").goal(fake_handler),
-        );
+        let router = Router::new()
+            .push(Router::with_path(r"avatars/{width|\d+}x{height|\d+}.{ext}").goal(fake_handler));
         let mut req = TestClient::get("http://local.host/avatars/321x641f.webp").build();
         let mut path_state = PathState::new(req.uri().path());
         let matched = router.detect(&mut req, &mut path_state).await;
@@ -644,7 +649,7 @@ mod tests {
     #[tokio::test]
     async fn test_router_detect12() {
         let router = Router::new()
-            .push(Router::with_path("/.well-known/acme-challenge/<token>").goal(fake_handler));
+            .push(Router::with_path("/.well-known/acme-challenge/{token}").goal(fake_handler));
 
         let mut req =
             TestClient::get("http://local.host/.well-known/acme-challenge/q1XXrxIx79uXNl3I")
@@ -657,7 +662,7 @@ mod tests {
     #[tokio::test]
     async fn test_router_detect13() {
         let router = Router::new()
-            .path("user/<id:/[0-9a-z]{8}(-[0-9a-z]{4}){3}-[0-9a-z]{12}/>")
+            .path("user/{id|[0-9a-z]{8}(-[0-9a-z]{4}){3}-[0-9a-z]{12}}")
             .get(fake_handler);
         let mut req =
             TestClient::get("http://local.host/user/726d694c-7af0-4bb0-9d22-706f7e38641e").build();
@@ -673,7 +678,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_router_detect_path_encoded() {
-        let router = Router::new().path("api/<p>").get(fake_handler);
+        let router = Router::new().path("api/{p}").get(fake_handler);
         let mut req = TestClient::get("http://127.0.0.1:6060/api/a%2fb%2fc").build();
         let mut path_state = PathState::new(req.uri().path());
         let matched = router.detect(&mut req, &mut path_state).await;

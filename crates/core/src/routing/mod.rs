@@ -37,8 +37,8 @@
 //! # async fn list_writer_articles(res: &mut Response) {
 //! # }
 //! Router::with_path("writers").get(list_writers).post(create_writer);
-//! Router::with_path("writers/<id>").get(show_writer).patch(edit_writer).delete(delete_writer);
-//! Router::with_path("writers/<id>/articles").get(list_writer_articles);
+//! Router::with_path("writers/{id}").get(show_writer).patch(edit_writer).delete(delete_writer);
+//! Router::with_path("writers/{id}/articles").get(list_writer_articles);
 //! ```
 //!
 //! # Write in tree way
@@ -70,7 +70,7 @@
 //!     .get(list_writers)
 //!     .post(create_writer)
 //!     .push(
-//!         Router::with_path("<id>")
+//!         Router::with_path("{id}")
 //!             .get(show_writer)
 //!             .patch(edit_writer)
 //!             .delete(delete_writer)
@@ -107,11 +107,11 @@
 //!     .push(
 //!         Router::with_path("articles")
 //!             .get(list_articles)
-//!             .push(Router::with_path("<id>").get(show_article))
+//!             .push(Router::with_path("{id}").get(show_article))
 //!             .then(|router|{
 //!                 if admin_mode() {
 //!                     router.post(create_article).push(
-//!                         Router::with_path("<id>").patch(update_article).delete(delete_writer)
+//!                         Router::with_path("{id}").patch(update_article).delete(delete_writer)
 //!                     )
 //!                 } else {
 //!                     router
@@ -125,7 +125,7 @@
 //!
 //! # Get param in routers
 //!
-//! In the previous source code, `<id>` is a param definition. We can access its value via Request instance:
+//! In the previous source code, `{id}` is a param definition. We can access its value via Request instance:
 //!
 //! ```rust
 //! use salvo_core::prelude::*;
@@ -136,26 +136,26 @@
 //! }
 //! ```
 //!
-//! `<id>` matches a fragment in the path, under normal circumstances, the article `id` is just a number, which we can
-//! use regular expressions to restrict `id` matching rules, `r"<id:/\d+/>"`.
+//! `{id}` matches a fragment in the path, under normal circumstances, the article `id` is just a number, which we can
+//! use regular expressions to restrict `id` matching rules, `r"{id|\d+}"`.
 //!
-//! For numeric characters there is an easier way to use `<id:num>`, the specific writing is:
+//! For numeric characters there is an easier way to use `{id:num}`, the specific writing is:
 //!
-//! - `<id:num>`, matches any number of numeric characters;
-//! - `<id:num[10]>`, only matches a certain number of numeric characters, where 10 means that the match only matches
+//! - `{id:num}`, matches any number of numeric characters;
+//! - `{id:num[10]}`, only matches a certain number of numeric characters, where 10 means that the match only matches
 //!   10 numeric characters;
-//! - `<id:num(..10)>` means matching 1 to 9 numeric characters;
-//! - `<id:num(3..10)>` means matching 3 to 9 numeric characters;
-//! - `<id:num(..=10)>` means matching 1 to 10 numeric characters;
-//! - `<id:num(3..=10)>` means match 3 to 10 numeric characters;
-//! - `<id:num(10..)>` means to match at least 10 numeric characters.
+//! - `{id:num(..10)}` means matching 1 to 9 numeric characters;
+//! - `{id:num(3..10)}` means matching 3 to 9 numeric characters;
+//! - `{id:num(..=10)}` means matching 1 to 10 numeric characters;
+//! - `{id:num(3..=10)}` means match 3 to 10 numeric characters;
+//! - `{id:num(10..)}` means to match at least 10 numeric characters.
 //!
-//! You can also use `<**>`, `<*+*>` or `<*?>` to match all remaining path fragments.
+//! You can also use `{**}`, `{*+*}` or `{*?}` to match all remaining path fragments.
 //! In order to make the code more readable, you can also add appropriate name to make the path semantics more clear,
-//! for example: `<**file_path>`.
+//! for example: `{**file_path}`.
 //!
 //! It is allowed to combine multiple expressions to match the same path segment,
-//! such as `/articles/article_<id:num>/`, `/images/<name>.<ext>`.
+//! such as `/articles/article_{id:num}/`, `/images/{name}.{ext}`.
 //!
 //! # Add middlewares
 //!
@@ -177,7 +177,7 @@
 //!     .get(list_writers)
 //!     .post(create_writer)
 //!     .push(
-//!         Router::with_path("<id>")
+//!         Router::with_path("{id}")
 //!             .get(show_writer)
 //!             .patch(edit_writer)
 //!             .delete(delete_writer)
@@ -207,11 +207,11 @@
 //!             .hoop(check_authed)
 //!             .path("writers")
 //!             .post(create_writer)
-//!             .push(Router::with_path("<id>").patch(edit_writer).delete(delete_writer)),
+//!             .push(Router::with_path("{id}").patch(edit_writer).delete(delete_writer)),
 //!     )
 //!     .push(
 //!         Router::new().path("writers").get(list_writers).push(
-//!             Router::with_path("<id>")
+//!             Router::with_path("{id}")
 //!                 .get(show_writer)
 //!                 .push(Router::with_path("articles").get(list_writer_articles)),
 //!         ),
@@ -250,14 +250,14 @@
 //!         Router::new()
 //!             .path("articles")
 //!             .get(list_articles)
-//!             .push(Router::new().path("<id>").get(show_article)),
+//!             .push(Router::new().path("{id}").get(show_article)),
 //!     )
 //!     .push(
 //!         Router::new()
 //!             .path("articles")
 //!             .hoop(auth_check)
 //!             .post(list_articles)
-//!             .push(Router::new().path("<id>").patch(edit_article).delete(delete_article)),
+//!             .push(Router::new().path("{id}").patch(edit_article).delete(delete_article)),
 //!     );
 //! ```
 //!
@@ -285,8 +285,8 @@
 //!
 //! # #[handler] fn show_article() {}
 //! # #[handler] fn serve_file() {}
-//! Router::with_path("articles/<id>").get(show_article);
-//! Router::with_path("files/<**rest_path>").get(serve_file);
+//! Router::with_path("articles/{id}").get(show_article);
+//! Router::with_path("files/{**rest_path}").get(serve_file);
 //! ```
 //!
 //! In `Handler`, it can be obtained through the `get_param` function of the `Request` object:
@@ -342,8 +342,8 @@
 //! ```rust
 //! use salvo_core::prelude::*;
 //!
-//! Router::with_path("/articles/<id:/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}/>");
-//! Router::with_path("/users/<id:/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}/>");
+//! Router::with_path("/articles/{id|[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}}");
+//! Router::with_path("/users/{id|[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}}");
 //! ```
 //!
 //! However, writing this complex regular expression every time is prone to errors and hard-coding the regex is not
@@ -361,80 +361,34 @@
 //!     let guid = regex::Regex::new("[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}").unwrap();
 //!     PathFilter::register_wisp_regex("guid", guid);
 //!     Router::new()
-//!         .push(Router::with_path("/articles/<id:guid>").get(show_article))
-//!         .push(Router::with_path("/users/<id:guid>").get(show_user));
+//!         .push(Router::with_path("/articles/{id:guid}").get(show_article))
+//!         .push(Router::with_path("/users/{id:guid}").get(show_user));
 //! }
 //! ```
 //!
 //! You only need to register once, and then you can directly match the GUID through the simple writing method as
-//! `<id:guid>`, which simplifies the writing of the code.
+//! `{id:guid}`, which simplifies the writing of the code.
 
 pub mod filters;
 pub use filters::*;
 mod router;
 pub use router::Router;
 
-use std::borrow::Cow;
-use std::ops::Deref;
+mod path_params;
+pub use path_params::PathParams;
+mod path_state;
+pub use path_state::PathState;
+mod flow_ctrl;
+pub use flow_ctrl::FlowCtrl;
+
 use std::sync::Arc;
 
-use indexmap::IndexMap;
-
-use crate::http::{Request, Response};
-use crate::{Depot, Handler};
+use crate::Handler;
 
 #[doc(hidden)]
 pub struct DetectMatched {
     pub hoops: Vec<Arc<dyn Handler>>,
     pub goal: Arc<dyn Handler>,
-}
-
-/// The path parameters.
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub struct PathParams {
-    inner: IndexMap<String, String>,
-    greedy: bool,
-}
-impl Deref for PathParams {
-    type Target = IndexMap<String, String>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-impl PathParams {
-    /// Create new `PathParams`.
-    pub fn new() -> Self {
-        PathParams::default()
-    }
-    /// If there is a wildcard param, it's value is `true`.
-    pub fn greedy(&self) -> bool {
-        self.greedy
-    }
-    /// Get the last param starts with '*', for example: <**rest>, <*?rest>.
-    pub fn tail(&self) -> Option<&str> {
-        if self.greedy {
-            self.inner.last().map(|(_, v)| &**v)
-        } else {
-            None
-        }
-    }
-
-    /// Insert new param.
-    pub fn insert(&mut self, name: &str, value: String) {
-        #[cfg(debug_assertions)]
-        {
-            if self.greedy {
-                panic!("only one wildcard param is allowed and it must be the last one.");
-            }
-        }
-        if name.starts_with('*') {
-            self.inner.insert(split_wild_name(name).1.to_owned(), value);
-            self.greedy = true;
-        } else {
-            self.inner.insert(name.to_owned(), value);
-        }
-    }
 }
 
 pub(crate) fn split_wild_name(name: &str) -> (&str, &str) {
@@ -447,201 +401,11 @@ pub(crate) fn split_wild_name(name: &str) -> (&str, &str) {
     }
 }
 
-#[doc(hidden)]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PathState {
-    pub(crate) parts: Vec<String>,
-    /// (row, col), row is the index of parts, col is the index of char in the part.
-    pub(crate) cursor: (usize, usize),
-    pub(crate) params: PathParams,
-    pub(crate) end_slash: bool, // For rest match, we want include the last slash.
-    pub(crate) once_ended: bool, // Once it has ended, used to determine whether the error code returned is 404 or 405.
-}
-impl PathState {
-    /// Create new `PathState`.
-    #[inline]
-    pub fn new(url_path: &str) -> Self {
-        let end_slash = url_path.ends_with('/');
-        let parts = url_path
-            .trim_start_matches('/')
-            .trim_end_matches('/')
-            .split('/')
-            .filter_map(|p| {
-                if !p.is_empty() {
-                    Some(decode_url_path_safely(p))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        PathState {
-            parts,
-            cursor: (0, 0),
-            params: PathParams::new(),
-            end_slash,
-            once_ended: false,
-        }
-    }
-
-    #[inline]
-    pub fn pick(&self) -> Option<&str> {
-        match self.parts.get(self.cursor.0) {
-            None => None,
-            Some(part) => {
-                if self.cursor.1 >= part.len() {
-                    let row = self.cursor.0 + 1;
-                    self.parts.get(row).map(|s| &**s)
-                } else {
-                    Some(&part[self.cursor.1..])
-                }
-            }
-        }
-    }
-
-    #[inline]
-    pub fn all_rest(&self) -> Option<Cow<'_, str>> {
-        if let Some(picked) = self.pick() {
-            if self.cursor.0 >= self.parts.len() - 1 {
-                if self.end_slash {
-                    Some(Cow::Owned(format!("{picked}/")))
-                } else {
-                    Some(Cow::Borrowed(picked))
-                }
-            } else {
-                let last = self.parts[self.cursor.0 + 1..].join("/");
-                if self.end_slash {
-                    Some(Cow::Owned(format!("{picked}/{last}/")))
-                } else {
-                    Some(Cow::Owned(format!("{picked}/{last}")))
-                }
-            }
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    pub fn forward(&mut self, steps: usize) {
-        let mut steps = steps + self.cursor.1;
-        while let Some(part) = self.parts.get(self.cursor.0) {
-            if part.len() > steps {
-                self.cursor.1 = steps;
-                return;
-            } else {
-                steps -= part.len();
-                self.cursor = (self.cursor.0 + 1, 0);
-            }
-        }
-    }
-
-    #[inline]
-    pub fn is_ended(&self) -> bool {
-        self.cursor.0 >= self.parts.len()
-    }
-}
-
 #[inline]
 fn decode_url_path_safely(path: &str) -> String {
     percent_encoding::percent_decode_str(path)
         .decode_utf8_lossy()
         .to_string()
-}
-
-/// Control the flow of execute handlers.
-///
-/// When a request is coming, [`Router`] will detect it and get the matched router.
-/// And then salvo will collect all handlers (including added as middlewares) from the matched router tree.
-/// All handlers in this list will executed one by one.
-///
-/// Each handler can use `FlowCtrl` to control execute flow, let the flow call next handler or skip all rest handlers.
-///
-/// **NOTE**: When `Response`'s status code is set, and the status code [`Response::is_stamped()`] is returns false,
-/// all rest handlers will skipped.
-///
-/// [`Router`]: crate::routing::Router
-#[derive(Default)]
-pub struct FlowCtrl {
-    catching: Option<bool>,
-    is_ceased: bool,
-    pub(crate) cursor: usize,
-    pub(crate) handlers: Vec<Arc<dyn Handler>>,
-}
-
-impl FlowCtrl {
-    /// Create new `FlowCtrl`.
-    #[inline]
-    pub fn new(handlers: Vec<Arc<dyn Handler>>) -> Self {
-        FlowCtrl {
-            catching: None,
-            is_ceased: false,
-            cursor: 0,
-            handlers,
-        }
-    }
-    /// Has next handler.
-    #[inline]
-    pub fn has_next(&self) -> bool {
-        self.cursor < self.handlers.len() // && !self.handlers.is_empty()
-    }
-
-    /// Call next handler. If get next handler and executed, returns `true``, otherwise returns `false`.
-    ///
-    /// **NOTE**: If response status code is error or is redirection, all reset handlers will be skipped.
-    #[inline]
-    pub async fn call_next(
-        &mut self,
-        req: &mut Request,
-        depot: &mut Depot,
-        res: &mut Response,
-    ) -> bool {
-        if self.catching.is_none() {
-            self.catching = Some(res.is_stamped());
-        }
-        if !self.catching.unwrap_or_default() && res.is_stamped() {
-            self.skip_rest();
-            return false;
-        }
-        let mut handler = self.handlers.get(self.cursor).cloned();
-        if handler.is_none() {
-            false
-        } else {
-            while let Some(h) = handler.take() {
-                self.cursor += 1;
-                h.handle(req, depot, res, self).await;
-                if !self.catching.unwrap_or_default() && res.is_stamped() {
-                    self.skip_rest();
-                    return true;
-                } else if self.has_next() {
-                    handler = self.handlers.get(self.cursor).cloned();
-                }
-            }
-            true
-        }
-    }
-
-    /// Skip all reset handlers.
-    #[inline]
-    pub fn skip_rest(&mut self) {
-        self.cursor = self.handlers.len()
-    }
-
-    /// Check is `FlowCtrl` ceased.
-    ///
-    /// **NOTE**: If handler is used as middleware, it should use `is_ceased` to check is flow ceased.
-    /// If `is_ceased` returns `true`, the handler should skip the following logic.
-    #[inline]
-    pub fn is_ceased(&self) -> bool {
-        self.is_ceased
-    }
-    /// Cease all following logic.
-    ///
-    /// **NOTE**: This function will mark is_ceased as `true`, but whether the subsequent logic can be skipped
-    /// depends on whether the middleware correctly checks is_ceased and skips the subsequent logic.
-    #[inline]
-    pub fn cease(&mut self) {
-        self.skip_rest();
-        self.is_ceased = true;
-    }
 }
 
 #[cfg(test)]
@@ -677,5 +441,69 @@ mod tests {
             .await
             .contains("404: Not Found"));
         assert_eq!(access(&service, "localhost").await, "Hello World");
+    }
+
+    #[tokio::test]
+    async fn test_matched_path() {
+        #[handler]
+        async fn alice1(req: &mut Request) {
+            assert_eq!(req.matched_path(), "open/alice1");
+        }
+        #[handler]
+        async fn bob1(req: &mut Request) {
+            assert_eq!(req.matched_path(), "open/alice1/bob1");
+        }
+
+        #[handler]
+        async fn alice2(req: &mut Request) {
+            assert_eq!(req.matched_path(), "open/alice2");
+        }
+        #[handler]
+        async fn bob2(req: &mut Request) {
+            assert_eq!(req.matched_path(), "open/alice2/bob2");
+        }
+
+        #[handler]
+        async fn alice3(req: &mut Request) {
+            assert_eq!(req.matched_path(), "alice3");
+        }
+        #[handler]
+        async fn bob3(req: &mut Request) {
+            assert_eq!(req.matched_path(), "alice3/bob3");
+        }
+
+        let router = Router::new()
+            .push(
+                Router::with_path("open").push(
+                    Router::with_path("alice1")
+                        .get(alice1)
+                        .push(Router::with_path("bob1").get(bob1)),
+                ),
+            )
+            .push(
+                Router::with_path("open").push(
+                    Router::with_path("alice2")
+                        .get(alice2)
+                        .push(Router::with_path("bob2").get(bob2)),
+                ),
+            )
+            .push(
+                Router::with_path("alice3")
+                    .get(alice3)
+                    .push(Router::with_path("bob3").get(bob3)),
+            );
+        let service = Service::new(router);
+
+        async fn access(service: &Service, path: &str) {
+            TestClient::get(format!("http://127.0.0.1/{}", path))
+                .send(service)
+                .await;
+        }
+        access(&service, "/open/alice1").await;
+        access(&service, "/open/alice1/bob1").await;
+        access(&service, "/open/alice2").await;
+        access(&service, "/open/alice2/bob2").await;
+        access(&service, "/alice3").await;
+        access(&service, "/alice1/bob3").await;
     }
 }

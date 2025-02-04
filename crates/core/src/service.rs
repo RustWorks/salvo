@@ -24,7 +24,7 @@ pub struct Service {
     pub router: Arc<Router>,
     /// The catcher of this service.
     pub catcher: Option<Arc<Catcher>>,
-    /// These hoops will alwways be called when request received.
+    /// These hoops will always be called when request received.
     pub hoops: Vec<Arc<dyn Handler>>,
     /// The allowed media types of this service.
     pub allowed_media_types: Arc<Vec<Mime>>,
@@ -226,6 +226,10 @@ impl HyperHandler {
         async move {
             if let Some(dm) = router.detect(&mut req, &mut path_state).await {
                 req.params = path_state.params;
+                #[cfg(feature = "matched-path")]
+                {
+                    req.matched_path = path_state.matched_parts.join("/");
+                }
                 // Set default status code before service hoops executed.
                 // We hope all hoops in service can get the correct status code.
                 let mut ctrl = FlowCtrl::new(

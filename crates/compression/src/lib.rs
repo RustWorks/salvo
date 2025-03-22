@@ -1,6 +1,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! Compression middleware for for Salvo web framework.
+//! Compression middleware for the Salvo web framework.
 //!
 //! Read more: <https://salvo.rs>
 
@@ -11,10 +11,10 @@ use indexmap::IndexMap;
 
 use salvo_core::http::body::ResBody;
 use salvo_core::http::header::{
-    HeaderValue, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE,
+    ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, HeaderValue,
 };
-use salvo_core::http::{self, mime, Mime, StatusCode};
-use salvo_core::{async_trait, Depot, FlowCtrl, Handler, Request, Response};
+use salvo_core::http::{self, Mime, StatusCode, mime};
+use salvo_core::{Depot, FlowCtrl, Handler, Request, Response, async_trait};
 
 mod encoder;
 mod stream;
@@ -25,7 +25,7 @@ use stream::EncodeStream;
 #[non_exhaustive]
 #[derive(Clone, Copy, Default, Debug, Eq, PartialEq)]
 pub enum CompressionLevel {
-    /// Fastest quality of compression, usually produces bigger size.
+    /// Fastest quality of compression, usually produces a bigger size.
     Fastest,
     /// Best quality of compression, usually produces the smallest size.
     Minsize,
@@ -129,7 +129,7 @@ pub struct Compression {
     pub algos: IndexMap<CompressionAlgo, CompressionLevel>,
     /// Content types to compress.
     pub content_types: Vec<Mime>,
-    /// Sets minimum compression size, if body less than this value, no compression.
+    /// Sets minimum compression size, if body is less than this value, no compression.
     pub min_length: usize,
     /// Ignore request algorithms order in `Accept-Encoding` header and always server's config.
     pub force_priority: bool,
@@ -245,7 +245,7 @@ impl Compression {
         self
     }
 
-    /// Sets minimum compression size, if body less than this value, no compression
+    /// Sets minimum compression size, if body is less than this value, no compression
     /// default is 1kb
     #[inline]
     pub fn min_length(mut self, size: usize) -> Self {

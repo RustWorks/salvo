@@ -43,7 +43,7 @@ use mime::Mime;
 use serde::Serialize;
 
 use crate::handler::{Handler, WhenHoop};
-use crate::http::{guess_accept_mime, header, Request, ResBody, Response, StatusCode, StatusError};
+use crate::http::{Request, ResBody, Response, StatusCode, StatusError, guess_accept_mime, header};
 use crate::{Depot, FlowCtrl};
 
 static SUPPORTED_FORMATS: LazyLock<Vec<mime::Name>> =
@@ -59,7 +59,7 @@ pub struct Catcher {
     hoops: Vec<Arc<dyn Handler>>,
 }
 impl Default for Catcher {
-    /// Create new `Catcher` with it's goal handler is [`DefaultGoal`].
+    /// Create new `Catcher` with its goal handler is [`DefaultGoal`].
     fn default() -> Self {
         Catcher {
             goal: Arc::new(DefaultGoal::new()),
@@ -96,7 +96,7 @@ impl Catcher {
 
     /// Add a handler as middleware, it will run the handler when error catched.
     ///
-    /// This middleware only effective when the filter return true.
+    /// This middleware is only effective when the filter returns true..
     #[inline]
     pub fn hoop_when<H, F>(mut self, hoop: H, filter: F) -> Self
     where

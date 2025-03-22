@@ -43,7 +43,7 @@ impl AllowOrigin {
     ///
     /// # Panics
     ///
-    /// If the iterator contains a wildcard (`*`).
+    /// Panics if the iterator contains a wildcard (`*`).
     ///
     /// [`Cors::allow_origin`]: super::Cors::allow_origin
     pub fn list<I>(origins: I) -> Self
@@ -52,7 +52,9 @@ impl AllowOrigin {
     {
         let origins = origins.into_iter().collect::<Vec<_>>();
         if origins.iter().any(|o| o == WILDCARD) {
-            panic!("Wildcard origin (`*`) cannot be passed to `AllowOrigin::list`. Use `AllowOrigin::any()` instead");
+            panic!(
+                "Wildcard origin (`*`) cannot be passed to `AllowOrigin::list`. Use `AllowOrigin::any()` instead"
+            );
         } else {
             Self(OriginInner::List(origins))
         }

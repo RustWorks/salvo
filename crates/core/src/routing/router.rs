@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug, Formatter};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::filters::{self, FnFilter, PathFilter};
 use super::{DetectMatched, Filter, PathState};
@@ -158,7 +158,7 @@ impl Router {
     }
 
     /// Add a handler as middleware, it will run the handler in current router or it's descendants
-    /// handle the request. This middleware only effective when the filter return true.
+    /// handle the request. This middleware is only effective when the filter returns true..
     #[inline]
     pub fn with_hoop_when<H, F>(hoop: H, filter: F) -> Self
     where
@@ -177,7 +177,7 @@ impl Router {
     }
 
     /// Add a handler as middleware, it will run the handler in current router or it's descendants
-    /// handle the request. This middleware only effective when the filter return true.
+    /// handle the request. This middleware is only effective when the filter returns true..
     #[inline]
     pub fn hoop_when<H, F>(mut self, hoop: H, filter: F) -> Self
     where
@@ -297,7 +297,7 @@ impl Router {
         Router::with_filter(filters::port(port))
     }
 
-    /// Create a new child router with [`MethodFilter`] to filter get method and set this child router's handler.
+    /// reates a new child router with [`MethodFilter`] to filter GET method and set this child router's handler.
     ///
     /// [`MethodFilter`]: super::filters::MethodFilter
     #[inline]
@@ -416,9 +416,9 @@ impl Debug for Router {
 #[cfg(test)]
 mod tests {
     use super::{PathState, Router};
+    use crate::Response;
     use crate::handler;
     use crate::test::TestClient;
-    use crate::Response;
 
     #[handler]
     async fn fake_handler(_res: &mut Response) {}

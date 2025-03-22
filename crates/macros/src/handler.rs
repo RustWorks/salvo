@@ -1,5 +1,5 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{Ident, ImplItem, Item, Pat, ReturnType, Signature, Type};
 
 use crate::shared::*;
@@ -8,7 +8,11 @@ pub(crate) fn generate(input: Item) -> syn::Result<TokenStream> {
     let salvo = salvo_crate();
     match input {
         Item::Fn(mut item_fn) => {
-            let attrs = &item_fn.attrs;
+            let attrs = item_fn
+                .attrs
+                .iter()
+                .filter(|attr| !attr.path().is_ident("handler"))
+                .collect::<Vec<_>>();
             let vis = &item_fn.vis;
             let sig = &mut item_fn.sig;
             let body = &item_fn.block;
@@ -98,7 +102,7 @@ fn handle_fn(salvo: &Ident, sig: &Signature) -> syn::Result<TokenStream> {
                 return Err(syn::Error::new_spanned(
                     &sig.inputs,
                     "the inputs parameters must be Request, Depot, Response or FlowCtrl",
-                ))
+                ));
             }
             InputType::NoReference(pat) => {
                 if let (Pat::Ident(ident), Type::Path(ty)) = (&*pat.pat, &*pat.ty) {

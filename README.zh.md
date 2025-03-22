@@ -2,7 +2,7 @@
 <p><img alt="Salvo" width="132" style="max-width:40%;min-width:60px;" src="https://salvo.rs/images/logo-text.svg" /></p>
 <p>
     <a href="https://github.com/salvo-rs/salvo/blob/main/README.md">English</a>&nbsp;&nbsp;
-    <a href="https://github.com/salvo-rs/salvo/blob/main/README.zh-hans.md">简体中文</a>&nbsp;&nbsp;
+    <a href="https://github.com/salvo-rs/salvo/blob/main/README.zh.md">简体中文</a>&nbsp;&nbsp;
     <a href="https://github.com/salvo-rs/salvo/blob/main/README.zh-hant.md">繁體中文</a>
 </p>
 <p>
@@ -15,27 +15,33 @@
 <a href="https://github.com/salvo-rs/salvo/actions">
     <img alt="build status" src="https://github.com/salvo-rs/salvo/workflows/ci-windows/badge.svg" />
 </a>
+<a href="https://codecov.io/gh/salvo-rs/salvo"><img alt="codecov" src="https://codecov.io/gh/salvo-rs/salvo/branch/main/graph/badge.svg" /></a>
 <br>
-<a href="https://discord.gg/G8KfmS6ByH">
-    <img src="https://img.shields.io/discord/1041442427006890014.svg?logo=discord">
-</a>
 <a href="https://crates.io/crates/salvo"><img alt="crates.io" src="https://img.shields.io/crates/v/salvo" /></a>
 <a href="https://docs.rs/salvo"><img alt="Documentation" src="https://docs.rs/salvo/badge.svg" /></a>
+<a href="https://crates.io/crates/salvo"><img alt="Download" src="https://img.shields.io/crates/d/salvo.svg" /></a>
 <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg" /></a>
-<a href="https://blog.rust-lang.org/2024/07/25/Rust-1.80.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.80%2B-blue" /></a>
+<a href="https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html"><img alt="Rust Version" src="https://img.shields.io/badge/rust-1.85%2B-blue" /></a>
 <br>
 <a href="https://salvo.rs">
     <img alt="Website" src="https://img.shields.io/badge/https-salvo.rs-%23f00" />
 </a>
-<a href="https://codecov.io/gh/salvo-rs/salvo"><img alt="codecov" src="https://codecov.io/gh/salvo-rs/salvo/branch/main/graph/badge.svg" /></a>
-<a href="https://crates.io/crates/salvo"><img alt="Download" src="https://img.shields.io/crates/d/salvo.svg" /></a>
-<img alt="License" src="https://img.shields.io/crates/l/salvo.svg" />
+<a href="https://discord.gg/G8KfmS6ByH">
+    <img src="https://img.shields.io/discord/1041442427006890014.svg?logo=discord">
+</a>
+<a href="https://gitcode.com/salvo-rs/salvo">
+    <img src="https://gitcode.com/salvo-rs/salvo/star/badge.svg">
+</a>
 </p>
 </div>
 
 Salvo(赛风) 是一个极其简单且功能强大的 Rust Web 后端框架。仅仅需要基础 Rust 知识即可开发后端服务。
 
 > 中国用户可以添加我微信 (chrislearn), 拉微信讨论群或者直接加入 QQ 群：823441777.
+>
+> 中国同步仓库：
+> - Gitee: https://gitee.com/salvo-rs/salvo
+> - Gitcode: https://gitcode.com/salvo-rs/salvo
 
 ## 🎯 功能特色
 
@@ -98,7 +104,7 @@ async fn add_header(res: &mut Response) {
 Router::new().hoop(add_header).get(hello)
 ```
 
-这就是一个简单的中间件，它向 `Response` 的头部添加了 `Header`, 查看[完整源码](https://github.com/salvo-rs/salvo/blob/main/examples/middleware-add-header/src/main.rs).
+这就是一个简单的中间件，它向 `Response` 的头部添加了 `Header`, 查看[完整源码](https://github.com/salvo-rs/salvo/blob/main/examples/middleware-add-header/src/main.rs)。
 
 ### 可链式书写的树状路由系统
 
@@ -128,7 +134,7 @@ Router::with_path("articles")
     .push(Router::with_path("{id}").patch(edit_article).delete(delete_article));
 ```
 
-虽然这两个路由都有这同样的 `path("articles")`, 然而它们依然可以被同时添加到同一个父路由，所以最后的路由长成了这个样子：
+虽然这两个路由都有着同样的 `path("articles")`, 然而它们依然可以被同时添加到同一个父路由，所以最后的路由长成了这个样子：
 
 ```rust
 Router::new()
@@ -144,9 +150,9 @@ Router::new()
     );
 ```
 
-`{id}`匹配了路径中的一个片段，正常情况下文章的的 `id`只是一个数字，这是我们可以使用正则表达式限制制 `id`的匹配规则，`r"{id|\d+}"`。
+`{id}`匹配了路径中的一个片段，正常情况下文章的 `id`只是一个数字，这时我们可以使用正则表达式限制 `id`的匹配规则，`r"{id|\d+}"`。
 
-还可以通过 `{**}`, `{*+}` 或者 `{*?}`匹配所有剩余的路径片段。为了代码易读性性强些，也可以添加适合的名字，让路径语义更清晰，比如：: `{**file_path}`。
+还可以通过 `{**}`, `{*+}` 或者 `{*?}`匹配所有剩余的路径片段。为了代码易读性强些，也可以添加适合的名字，让路径语义更清晰，比如：: `{**file_path}`。
 
 有些用于匹配路径的正则表达式需要经常被使用，可以将它事先注册，比如 GUID:
 

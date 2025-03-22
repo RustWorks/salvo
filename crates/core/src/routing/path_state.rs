@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use super::{decode_url_path_safely, PathParams};
+use super::{PathParams, decode_url_path_safely};
 
 #[doc(hidden)]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -15,7 +15,7 @@ pub struct PathState {
     pub(crate) once_ended: bool, // Once it has ended, used to determine whether the error code returned is 404 or 405.
 }
 impl PathState {
-    /// Create new `PathState`.
+    /// Creates a new `PathState`.
     #[inline]
     pub fn new(url_path: &str) -> Self {
         let end_slash = url_path.ends_with('/');

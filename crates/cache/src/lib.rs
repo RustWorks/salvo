@@ -1,7 +1,7 @@
-//! Cache middleware for Salvo web framework.
+//! Cache middleware for the Salvo web framework.
 //!
 //! Cache middleware for Salvo designed to intercept responses and cache them.
-//! This middleware will cache the response's StatusCode, Headers and Body.
+//! This middleware will cache the response's StatusCode, Headers, and Body.
 //!
 //! You can define your custom [`CacheIssuer`] to determine which responses should be cached,
 //! or you can use the default [`RequestIssuer`].
@@ -18,13 +18,12 @@
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::error::Error as StdError;
-use std::future::Future;
 use std::hash::Hash;
 
 use bytes::Bytes;
 use salvo_core::handler::Skipper;
 use salvo_core::http::{HeaderMap, ResBody, StatusCode};
-use salvo_core::{async_trait, Depot, Error, FlowCtrl, Handler, Request, Response};
+use salvo_core::{Depot, Error, FlowCtrl, Handler, Request, Response, async_trait};
 
 mod skipper;
 pub use skipper::MethodSkipper;
@@ -86,27 +85,27 @@ impl RequestIssuer {
             use_method: true,
         }
     }
-    /// Whether to use request's uri scheme when generate the key.
+    /// Whether to use the request's URI scheme when generating the key.
     pub fn use_scheme(mut self, value: bool) -> Self {
         self.use_scheme = value;
         self
     }
-    /// Whether to use request's uri authority when generate the key.
+    /// Whether to use the request's URI authority when generating the key.
     pub fn use_authority(mut self, value: bool) -> Self {
         self.use_authority = value;
         self
     }
-    /// Whether to use request's uri path when generate the key.
+    /// Whether to use the request's URI path when generating the key.
     pub fn use_path(mut self, value: bool) -> Self {
         self.use_path = value;
         self
     }
-    /// Whether to use request's uri query when generate the key.
+    /// Whether to use the request's URI query when generating the key.
     pub fn use_query(mut self, value: bool) -> Self {
         self.use_query = value;
         self
     }
-    /// Whether to use request method when generate the key.
+    /// Whether to use the request method when generating the key.
     pub fn use_method(mut self, value: bool) -> Self {
         self.use_method = value;
         self
@@ -156,7 +155,7 @@ pub trait CacheStore: Send + Sync + 'static {
     where
         Self::Key: Borrow<Q>,
         Q: Hash + Eq + Sync;
-    /// Save the cache item from the store.
+    /// Save the cache item to the store.
     fn save_entry(
         &self,
         key: Self::Key,
@@ -164,16 +163,16 @@ pub trait CacheStore: Send + Sync + 'static {
     ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }
 
-/// `CachedBody` is used to save response body to `CachedStore`.
+/// `CachedBody` is used to save the response body to `CacheStore`.
 ///
-/// [`ResBody`] has Stream type, which is not `Send + Sync`, so we need to convert it to `CachedBody`.
-/// If response's body is ['ResBody::Stream`], it will not be cached.
+/// [`ResBody`] has a Stream type, which is not `Send + Sync`, so we need to convert it to `CachedBody`.
+/// If the response's body is [`ResBody::Stream`], it will not be cached.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum CachedBody {
-    /// None body.
+    /// No body.
     None,
-    /// Once bytes body.
+    /// Single bytes body.
     Once(Bytes),
     /// Chunks body.
     Chunks(VecDeque<Bytes>),
@@ -209,7 +208,7 @@ pub struct CachedEntry {
     pub headers: HeaderMap,
     /// Response body.
     ///
-    /// *Notice: If the response's body is streaming, it will be ignored an not cached.
+    /// *Notice: If the response's body is streaming, it will be ignored and not cached.
     pub body: CachedBody,
 }
 impl CachedEntry {
@@ -234,7 +233,7 @@ impl CachedEntry {
 
     /// Get the response body.
     ///
-    /// *Notice: If the response's body is streaming, it will be ignored an not cached.
+    /// *Notice: If the response's body is streaming, it will be ignored and not cached.
     pub fn body(&self) -> &CachedBody {
         &self.body
     }
@@ -267,7 +266,7 @@ pub struct Cache<S, I> {
 }
 
 impl<S, I> Cache<S, I> {
-    /// Create new `Cache`.
+    /// Create a new `Cache`.
     #[inline]
     pub fn new(store: S, issuer: I) -> Self {
         let skipper = MethodSkipper::new().skip_all().skip_get(false);
@@ -277,7 +276,7 @@ impl<S, I> Cache<S, I> {
             skipper: Box::new(skipper),
         }
     }
-    /// Sets skipper and returns new `Cache`.
+    /// Sets skipper and returns a new `Cache`.
     #[inline]
     pub fn skipper(mut self, skipper: impl Skipper) -> Self {
         self.skipper = Box::new(skipper);

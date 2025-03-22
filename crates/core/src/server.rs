@@ -1,5 +1,4 @@
 //! Server module
-use std::future::Future;
 use std::io::Result as IoResult;
 #[cfg(feature = "server-handle")]
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -166,7 +165,7 @@ impl<A: Acceptor + Send> Server<A> {
         ///
         /// Call this function will stop server after all connections are closed.
         /// You can specify a timeout to force stop server.
-        /// If `timeout` is `None`, it will wait util all connections are closed.
+        /// If `timeout` is `None`, it will wait until all connections are closed.
         pub fn stop_graceful(&self, timeout: impl Into<Option<Duration>>) {
             let _ = self.tx_cmd.send(ServerCommand::StopGraceful(timeout.into()));
         }

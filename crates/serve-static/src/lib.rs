@@ -1,4 +1,9 @@
-//! serve static dir and file middleware for Salvo web framework.
+//! Serve static files and directories for Salvo web framework.
+//!
+//! This crate provides handlers for serving static content:
+//! - `StaticDir` - Serve files from directory with options for directory listing
+//! - `StaticFile` - Serve a single file
+//! - `StaticEmbed` - Serve embedded files using rust-embed (when "embed" feature is enabled)
 //!
 //! Read more: <https://salvo.rs>
 #![doc(html_favicon_url = "https://salvo.rs/favicon-32x32.png")]
@@ -8,10 +13,10 @@
 pub mod dir;
 mod file;
 
-use percent_encoding::{utf8_percent_encode, CONTROLS};
+use percent_encoding::{CONTROLS, utf8_percent_encode};
+use salvo_core::Response;
 use salvo_core::http::uri::{Parts as UriParts, Uri};
 use salvo_core::writing::Redirect;
-use salvo_core::Response;
 
 pub use dir::StaticDir;
 pub use file::StaticFile;
@@ -272,11 +277,13 @@ mod tests {
             .send(&service)
             .await;
         assert_eq!(response.status_code.unwrap(), StatusCode::OK);
-        assert!(response
-            .take_string()
-            .await
-            .unwrap()
-            .contains("Fallback page"));
+        assert!(
+            response
+                .take_string()
+                .await
+                .unwrap()
+                .contains("Fallback page")
+        );
 
         let response = TestClient::get("http://127.0.0.1:5801/dir")
             .send(&service)

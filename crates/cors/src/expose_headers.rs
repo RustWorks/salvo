@@ -5,7 +5,7 @@ use std::sync::Arc;
 use salvo_core::http::header::{self, HeaderName, HeaderValue};
 use salvo_core::{Depot, Request};
 
-use super::{separated_by_commas, Any, WILDCARD};
+use super::{Any, WILDCARD, separated_by_commas};
 
 /// Holds configuration for how to set the [`Access-Control-Expose-Headers`][mdn] header.
 ///
@@ -45,7 +45,7 @@ impl ExposeHeaders {
         }
     }
 
-    /// Allow custom allow headers based on a given predicate
+    /// Allow custom headers based on a given predicate
     ///
     /// See [`Cors::allow_headers`] for more details.
     ///

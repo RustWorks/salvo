@@ -2,7 +2,7 @@
 //!
 //! # What is router
 //!
-//! Router can route http requests to different handlers. This is a basic and key feature in salvo.
+//! Router can route HTTP requests to different handlers. This is a basic and key feature in salvo.
 //!
 //! The interior of [`Router`] is actually composed of a series of filters. When a request comes, the route will
 //! test itself and its descendants in order to see if they can match the request in the order they were added, and
@@ -437,9 +437,11 @@ mod tests {
                 .unwrap()
         }
 
-        assert!(access(&service, "127.0.0.1")
-            .await
-            .contains("404: Not Found"));
+        assert!(
+            access(&service, "127.0.0.1")
+                .await
+                .contains("404: Not Found")
+        );
         assert_eq!(access(&service, "localhost").await, "Hello World");
     }
 

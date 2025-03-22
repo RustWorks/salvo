@@ -1,9 +1,9 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{Expr, Ident, ImplItem, Item, Pat, ReturnType, Signature, Type};
 
 use crate::doc_comment::CommentAttributes;
-use crate::{omit_type_path_lifetimes, parse_input_type, Array, DiagResult, InputType, Operation};
+use crate::{Array, DiagResult, InputType, Operation, omit_type_path_lifetimes, parse_input_type};
 
 mod attr;
 pub(crate) use attr::EndpointAttr;
@@ -84,7 +84,11 @@ pub(crate) fn generate(mut attr: EndpointAttr, input: Item) -> syn::Result<Token
     let oapi = crate::oapi_crate();
     match input {
         Item::Fn(mut item_fn) => {
-            let attrs = &item_fn.attrs;
+            let attrs = item_fn
+                .attrs
+                .iter()
+                .filter(|attr| !attr.path().is_ident("endpoint"))
+                .collect::<Vec<_>>();
             let vis = &item_fn.vis;
             let sig = &mut item_fn.sig;
             let body = &item_fn.block;
@@ -109,7 +113,7 @@ pub(crate) fn generate(mut attr: EndpointAttr, input: Item) -> syn::Result<Token
                 }
             };
 
-            attr.doc_comments = Some(CommentAttributes::from_attributes(attrs).0);
+            attr.doc_comments = Some(CommentAttributes::from_attributes(&docs).0);
             attr.deprecated = if attrs.iter().any(|attr| attr.path().is_ident("deprecated")) {
                 Some(true)
             } else {
@@ -200,7 +204,7 @@ fn handle_fn(
                 return Err(syn::Error::new_spanned(
                     &sig.inputs,
                     "the inputs parameters must be Request, Depot, Response or FlowCtrl",
-                ))
+                ));
             }
             InputType::NoReference(pat) => {
                 if let (Pat::Ident(ident), Type::Path(ty)) = (&*pat.pat, &*pat.ty) {

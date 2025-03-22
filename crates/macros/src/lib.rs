@@ -6,7 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, DeriveInput, Item};
+use syn::{DeriveInput, Item, parse_macro_input};
 
 mod attribute;
 mod extract;
@@ -64,7 +64,6 @@ mod tests {
                 #[derive(Debug)]
                 struct hello;
                 impl hello {
-                    #[handler]
                     async fn hello(req: &mut Request,depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl) {
                         {
                             res.render_plain_text("Hello World");
@@ -104,7 +103,6 @@ mod tests {
                 #[derive(Debug)]
                 struct hello;
                 impl hello {
-                    #[handler]
                     async fn hello(req: &mut Request, depot: &mut Depot, res: &mut Response, ctrl: &mut FlowCtrl
                     ) -> Result<(), Error> {
                         {Ok(())}

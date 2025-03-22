@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -8,14 +7,14 @@ use http::uri::Scheme;
 use hyper::service::Service as HyperService;
 use hyper::{Method, Request as HyperRequest, Response as HyperResponse};
 
-use crate::catcher::{write_error_default, Catcher};
+use crate::catcher::{Catcher, write_error_default};
 use crate::conn::SocketAddr;
 use crate::fuse::ArcFusewire;
 use crate::handler::{Handler, WhenHoop};
 use crate::http::body::{ReqBody, ResBody};
 use crate::http::{Mime, Request, Response, StatusCode};
 use crate::routing::{FlowCtrl, PathState, Router};
-use crate::{async_trait, Depot};
+use crate::{Depot, async_trait};
 
 /// Service http request.
 #[non_exhaustive]
@@ -88,7 +87,7 @@ impl Service {
 
     /// Add a handler as middleware, it will run the handler when request received.
     ///
-    /// This middleware only effective when the filter return true.
+    /// This middleware is only effective when the filter returns true..
     #[inline]
     pub fn hoop_when<H, F>(mut self, hoop: H, filter: F) -> Self
     where
@@ -204,7 +203,7 @@ pub struct HyperHandler {
 }
 impl HyperHandler {
     /// Handle [`Request`] and returns [`Response`].
-    pub fn handle(&self, mut req: Request) -> impl Future<Output = Response> {
+    pub fn handle(&self, mut req: Request) -> impl Future<Output = Response> + 'static {
         let catcher = self.catcher.clone();
         let allowed_media_types = self.allowed_media_types.clone();
         req.local_addr = self.local_addr.clone();
@@ -317,30 +316,29 @@ impl HyperHandler {
             }
             #[cfg(debug_assertions)]
             if Method::HEAD == *req.method() && !res.body.is_none() {
-                tracing::warn!("request with head method should not have body: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/HEAD");
+                tracing::warn!(
+                    "request with head method should not have body: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/HEAD"
+                );
             }
             #[cfg(feature = "quinn")]
             {
                 use bytes::Bytes;
                 use std::sync::Mutex;
-                if let Some(session) = req.extensions.remove::<Arc<
-                    crate::proto::WebTransportSession<salvo_http3::http3_quinn::Connection, Bytes>,
-                >>() {
+                if let Some(session) =
+                    req.extensions.remove::<Arc<
+                        crate::proto::WebTransportSession<salvo_http3::quinn::Connection, Bytes>,
+                    >>()
+                {
                     res.extensions.insert(session);
                 }
                 if let Some(conn) = req.extensions.remove::<Arc<
-                    Mutex<
-                        salvo_http3::server::Connection<
-                            salvo_http3::http3_quinn::Connection,
-                            Bytes,
-                        >,
-                    >,
+                    Mutex<salvo_http3::server::Connection<salvo_http3::quinn::Connection, Bytes>>,
                 >>() {
                     res.extensions.insert(conn);
                 }
                 if let Some(stream) = req.extensions.remove::<Arc<
                     salvo_http3::server::RequestStream<
-                        salvo_http3::http3_quinn::BidiStream<Bytes>,
+                        salvo_http3::quinn::BidiStream<Bytes>,
                         Bytes,
                     >,
                 >>() {

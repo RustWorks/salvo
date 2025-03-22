@@ -1,4 +1,4 @@
-//! serve static dir
+//! Serve static directories with directory listing support
 
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
@@ -13,26 +13,26 @@ use salvo_core::handler::Handler;
 use salvo_core::http::header::ACCEPT_ENCODING;
 use salvo_core::http::{self, HeaderValue, Request, Response, StatusCode, StatusError};
 use salvo_core::writing::Text;
-use salvo_core::{async_trait, Depot, FlowCtrl, IntoVecString};
+use salvo_core::{Depot, FlowCtrl, IntoVecString, async_trait};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use time::{macros::format_description, OffsetDateTime};
+use time::{OffsetDateTime, macros::format_description};
 
 use super::{
     decode_url_path_safely, encode_url_path, format_url_path_safely, join_path, redirect_to_dir_url,
 };
 
-/// CompressionAlgo
+/// Supported compression algorithms for serving compressed file variants
 #[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 #[non_exhaustive]
 pub enum CompressionAlgo {
-    /// Brotli
+    /// Brotli compression
     Brotli,
-    /// Deflate
+    /// Deflate compression
     Deflate,
-    /// Gzip
+    /// Gzip compression
     Gzip,
-    /// Zstd
+    /// Zstandard compression
     Zstd,
 }
 impl FromStr for CompressionAlgo {
@@ -122,32 +122,41 @@ where
     }
 }
 
-/// Handler that serves a directory.
+/// Handler that serves static files from directories.
+///
+/// This handler can serve files from one or more directory paths,
+/// with support for directory listing, compressed file variants,
+/// and default files.
+///
+/// # Examples
+///
+/// ```
+/// use salvo_core::prelude::*;
+/// use salvo_serve_static::StaticDir;
+///
+/// let router = Router::new()
+///     .push(Router::with_path("static/<**>")
+///         .get(StaticDir::new(["assets", "static"])
+///             .defaults("index.html")
+///             .auto_list(true)));
+/// ```
 #[non_exhaustive]
 pub struct StaticDir {
-    /// Static roots.
+    /// Static root directories to search for files
     pub roots: Vec<PathBuf>,
-    /// During the file chunk read, the maximum read size at one time will affect the
-    /// access experience and the demand for server memory.
-    ///
-    /// Please set it according to your own situation.
-    ///
-    /// The default is 1M.
+    /// Chunk size for file reading (in bytes)
     pub chunk_size: Option<u64>,
-    /// List dot files.
+    /// Whether to include dot files (files/directories starting with .)
     pub include_dot_files: bool,
     #[allow(clippy::type_complexity)]
     exclude_filters: Vec<Box<dyn Fn(&str) -> bool + Send + Sync>>,
-    /// Auto list the directory if default file not found.
+    /// Whether to automatically list directories when default file isn't found
     pub auto_list: bool,
-    /// Compressed variations.
-    ///
-    /// The key is the compression algorithm, and the value is the file extension.
-    /// If the compression file exists, it will serve the compressed file instead of the original file.
+    /// Map of compression algorithms to file extensions for compressed variants
     pub compressed_variations: HashMap<CompressionAlgo, Vec<String>>,
-    /// Default file names list.
+    /// Default file names to look for in directories (e.g., "index.html")
     pub defaults: Vec<String>,
-    /// Fallback file name. This is used when the requested file is not found.
+    /// Fallback file to serve when requested file isn't found
     pub fallback: Option<String>,
 }
 impl StaticDir {
@@ -402,13 +411,7 @@ impl Handler for StaticDir {
                         .unwrap_or_default();
                     let accept_algos = http::parse_accept_encoding(header)
                         .into_iter()
-                        .filter_map(|(algo, _level)| {
-                            if let Ok(algo) = algo.parse::<CompressionAlgo>() {
-                                Some(algo)
-                            } else {
-                                None
-                            }
-                        })
+                        .filter_map(|(algo, _level)| algo.parse::<CompressionAlgo>().ok())
                         .collect::<HashSet<_>>();
                     for (algo, exts) in &self.compressed_variations {
                         if accept_algos.contains(algo) {

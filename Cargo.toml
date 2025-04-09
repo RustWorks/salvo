@@ -75,17 +75,17 @@ indexmap = "2"
 inventory = "0.3"
 jsonwebtoken = "9"
 mime = "0.3"
-mime-infer = "3"
+mime-infer = "4"
 moka = "0.12"
 multer = "3"
 multimap = "0.10"
 native-tls = "0.2"
 nix = { version = "0.29", default-features = false }
 openssl = { version = "0.10" }
-opentelemetry = { version = "0.28", default-features = false }
-opentelemetry-http = { version = "0.28", default-features = false }
-opentelemetry-prometheus = { version = "0.28", default-features = false }
-opentelemetry-semantic-conventions = { version = "0.28", default-features = false }
+opentelemetry = { version = "0.29", default-features = false }
+opentelemetry-http = { version = "0.29", default-features = false }
+opentelemetry-prometheus = { version = "0.29", default-features = false }
+opentelemetry-semantic-conventions = { version = "0.29", default-features = false }
 parking_lot = "0.12"
 path-slash = "0.2"
 percent-encoding = "2"

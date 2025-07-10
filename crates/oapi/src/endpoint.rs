@@ -178,3 +178,19 @@ impl EndpointRegistry {
     }
 }
 inventory::collect!(EndpointRegistry);
+
+#[cfg(feature = "anyhow")]
+impl EndpointOutRegister for anyhow::Error {
+    #[inline]
+    fn register(components: &mut Components, operation: &mut Operation) {
+        StatusError::register(components, operation);
+    }
+}
+
+#[cfg(feature = "eyre")]
+impl EndpointOutRegister for eyre::Report {
+    #[inline]
+    fn register(components: &mut Components, operation: &mut Operation) {
+        StatusError::register(components, operation);
+    }
+}
